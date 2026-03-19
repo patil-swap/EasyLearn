@@ -158,7 +158,16 @@ The following capabilities must be implemented application-wide to improve retri
 ### 4.1 RAG and LLM Configuration
 
 *   **Accuracy Priority:** Accuracy is the highest technical priority. The RAG pipeline (chunking, retrieval, context injection) must be optimized for high fidelity context retrieval.
-*   **LLM Choice:** Selection must be compatible with a **free tier** usage model, given the low budget constraint. (Specific LLM/Embedding provider details TBD, but must honor the free tier restriction).
+*   **Primary LLM Provider:** Ollama runs open-source models locally on the developer's machine (or server). Provides an OpenAI-compatible API endpoint at `http://127.0.0.1:11434/v1`. Chosen for: complete data privacy (no cloud transmission), offline capability, no per-token costs, and seamless integration with LangChain.
+* **Selected Model:** qwen2.5:7b-instruct-q5_K_M
+  * **Reasoning:**  
+    - Strong instruction-following and faithfulness in RAG contexts (2025–2026 benchmarks show excellent performance on long-document understanding, summarization, and structured reasoning).  
+    - Balanced size (~4–6 GB VRAM usage in Q5 quantization) — suitable for mid-range laptops (e.g. 16 GB RAM + RTX 3050 4 GB).  
+  -   Quantized to Q5_K_M for good quality vs speed trade-off (generation ~30–50 tokens/s on compatible GPUs).  
+    - Supports up to ~32k context (configurable; default to 8k–16k for most book queries to stay performant).  
+  * **Fallback / alternatives** (in order of preference):  
+    1. llama3.3:8b-instruct-q5_K_M  
+    2. mistral:7b-instruct-v0.3-q5_K_M
 *   **Performance/Latency:** While scalability (handling many users) is desired, initial performance targets are flexible. The focus is achieving correct results over speed, provided the response is not excessively slow (target < 10 seconds for complex queries on a single user session).
 
 ### 4.2 Data Handling and Persistence

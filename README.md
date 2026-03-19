@@ -1,36 +1,79 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# EasyLearn AI Assistant 📚
 
-## Getting Started
+EasyLearn is a powerful, RAG-powered AI assistant designed to help you analyze, summarize, and query books (PDF, EPUB, TXT) with academic-grade precision and a modern user interface.
 
-First, run the development server:
+## ✨ Features
 
+- **Multi-Format Support**: Seamlessly ingest PDF, EPUB, and TXT files.
+- **Specialized AI Tools**:
+  - **Summary**: Concise overviews (max 200 words/3 paragraphs).
+  - **Question Answering**: Contextually grounded answers from the book.
+  - **Character Arc**: (Fiction) Deep synthesis of character journeys.
+  - **Plot Explanation**: Chapter-by-chapter or global narrative structure.
+  - **Concept Simplification**: (Educational) Adaptive clarity for students and researchers.
+  - **Problem Solving**: Method-based solutions derived from technical texts.
+- **Academic Citation System**: Every response includes verifiable source excerpts and citations.
+- **Session Memory**: Natural, multi-turn conversations within each book session.
+- **Security-First**: Prompt injection guards, rate limiting, and strict file validation.
+
+## 🛠️ Local Setup
+
+### Prerequisites
+- **Python 3.10+**
+- **Node.js 18+**
+- **Ollama**: [Download and install Ollama](https://ollama.com/)
+
+### 1. LLM Setup (Ollama)
+Pull the required model:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+ollama pull qwen2.5:7b-instruct-q5_K_M
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Backend Setup (FastAPI)
+1. Navigate to the backend directory:
+   ```bash
+   cd backend
+   ```
+2. Create and activate a virtual environment:
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate  # Linux/macOS
+   # or .venv\Scripts\activate on Windows
+   ```
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Start the server:
+   ```bash
+   uvicorn main:app --reload
+   ```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. Frontend Setup (Next.js)
+1. Navigate to the frontend directory:
+   ```bash
+   cd frontend
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Start the development server:
+   ```bash
+   npm run dev
+   ```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🚀 How to Use
 
-## Learn More
+1. Open `http://localhost:3000` in your browser.
+2. Upload a book (PDF, EPUB, or TXT) and select its type (Fiction or Educational).
+3. Wait for the "completed" status.
+4. Select a tool from the top panel (e.g., "Summary" or "Concept").
+5. Ask questions or interact with the AI assistant!
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 🛡️ Security Measures
+EasyLearn follows OWASP and LLM security best practices:
+- **Rate Limiting**: 5 uploads/hour and 30 queries/hour per session.
+- **File Validation**: Strict MIME type check and 50MB file size limit.
+- **Content Security**: Security headers (CSP, X-Frame-Options) and sanitized rendering.
+- **Prompt Isolation**: System instructions are hidden and injection-hardened.
