@@ -41,4 +41,27 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+# next-env.d.ts
 next-env.d.ts
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# backend specific
+backend/uploads/
+backend/chroma_db/
+backend/__pycache__/
+backend/.pytest_cache/
+
+# misc
+.DS_Store
+.vscode/
+.idea/
+*.log

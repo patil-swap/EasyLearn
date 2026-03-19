@@ -11,7 +11,7 @@ class RAGPipeline:
 
     def get_memory(self, book_id: str) -> InMemoryChatMessageHistory:
         if book_id not in self.memories:
-            self.memories[book_id] = InMemoryChatMessageHistory(k=5, memory_key="chat_history", return_messages=True)
+            self.memories[book_id] = InMemoryChatMessageHistory()
         return self.memories[book_id]
 
     async def run_query(self, book_id: str, tool_name: str, query_text: Optional[str] = None, difficulty: str = "standard"):
@@ -42,9 +42,10 @@ class RAGPipeline:
                     "excerpt": doc.page_content[:200] + "..."
                 })
 
-            # 4. Get chat history
+            # 4. Get chat history (manual windowing for last 10 messages / 5 turns)
             memory = self.get_memory(book_id)
-            chat_history = memory.load_memory_variables({})["chat_history"]
+            all_messages = memory.messages
+            chat_history = all_messages[-10:] if len(all_messages) > 10 else all_messages
 
             # 5. Generate response
             answer = await self.llm_handler.generate_response(
@@ -56,7 +57,8 @@ class RAGPipeline:
             )
 
             # 6. Save to memory
-            memory.save_context({"input": search_query}, {"output": answer})
+            memory.add_user_message(search_query)
+            memory.add_ai_message(answer)
 
             return {
                 "answer": answer,
