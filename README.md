@@ -12,9 +12,10 @@ EasyLearn is a powerful, RAG-powered AI assistant designed to help you analyze, 
   - **Plot Explanation**: Chapter-by-chapter or global narrative structure.
   - **Concept Simplification**: (Educational) Adaptive clarity for students and researchers.
   - **Problem Solving**: Method-based solutions derived from technical texts.
-- **Academic Citation System**: Every response includes verifiable source excerpts and citations.
-- **Session Memory**: Natural, multi-turn conversations within each book session.
-- **Security-First**: Prompt injection guards, rate limiting, and strict file validation.
+  - **Two-Stage RAG Pipeline**: Uses **FlashRank Reranking** and **MMR (Maximal Marginal Relevance)** for 100% grounded answers.
+  - **Academic Citation UX**: Responses include inline **clickable superscripts** with hover-ready excerpts.
+  - **Real-Time Progress**: Multi-staged UI messaging (Uploading → Validating → Processing → Indexing).
+  - **Security-First**: Prompt injection guards, rate limiting, and strict file validation.
 
 ## 🛠️ Local Setup
 
@@ -67,13 +68,16 @@ ollama pull qwen2.5:7b-instruct-q5_K_M
 
 1. Open `http://localhost:3000` in your browser.
 2. Upload a book (PDF, EPUB, or TXT) and select its type (Fiction or Educational).
-3. Wait for the "completed" status.
+3. Wait for the "Ready" status indicator.
 4. Select a tool from the top panel (e.g., "Summary" or "Concept").
 5. Ask questions or interact with the AI assistant!
 
-## 🛡️ Security Measures
+## 🛡️ Security & Guardrails
 EasyLearn follows OWASP and LLM security best practices:
 - **Rate Limiting**: 5 uploads/hour and 30 queries/hour per session.
-- **File Validation**: Strict MIME type check and 50MB file size limit.
-- **Content Security**: Security headers (CSP, X-Frame-Options) and sanitized rendering.
+- **File Validation**:
+  - **Global Limit**: 50MB maximum file size.
+  - **PDF Restriction**: Max 1000 pages; must contain extractable text (no scanned images).
+  - **EPUB/TXT Restriction**: Max 1,500,000 characters.
+- **Content Security**: Security headers (CSP, X-Frame-Options) and sanitized React rendering.
 - **Prompt Isolation**: System instructions are hidden and injection-hardened.
