@@ -59,7 +59,23 @@ export function ChatWindow({ messages, onSendMessage, isLoading, toolName }: Cha
                     : "bg-[#F1F3F4] text-[#202124]"
                   }`}
               >
-                <div className="whitespace-pre-wrap">{m.content}</div>
+                <div className="whitespace-pre-wrap">
+                  {m.content.split(/(\[Chunk \d+\])/g).map((part, index) => {
+                    const match = part.match(/\[Chunk (\d+)\]/);
+                    if (match) {
+                      return (
+                        <sup 
+                          key={index} 
+                          className="text-[10px] font-bold text-[#1A73E8] bg-[#1A73E8]/10 px-0.5 rounded ml-0.5 cursor-help"
+                          title={`Source Chunk ${match[1]}`}
+                        >
+                          {match[1]}
+                        </sup>
+                      );
+                    }
+                    return part;
+                  })}
+                </div>
                 {m.sources && m.sources.length > 0 && (
                   <div className="mt-2 pt-2 border-t border-[#D1D3D4]">
                     <SourceViewer sources={m.sources} />

@@ -31,13 +31,14 @@ export const api = {
     });
 
     if (!response.ok) {
-      throw new Error("Failed to upload book");
+      const errorData = await response.json().catch(() => ({}));
+      throw { ...errorData, status: response.status };
     }
 
     return response.json();
   },
 
-  getUploadStatus: async (book_id: string): Promise<{ book_id: string; status: string }> => {
+  getUploadStatus: async (book_id: string): Promise<{ book_id: string; status: string; code?: string; message?: string }> => {
     const response = await fetch(`${API_BASE_URL}/books/${book_id}/status`);
     if (!response.ok) {
         throw new Error("Failed to get status");

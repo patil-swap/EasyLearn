@@ -12,9 +12,23 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Security Headers Middleware
+# Security Headers & File Size Middleware
 @app.middleware("http")
-async def add_security_headers(request: Request, call_next):
+async def security_and_size_middleware(request: Request, call_next):
+    # 50MB limit (PRD 7.3)
+    MAX_FILE_SIZE = 50 * 1024 * 1024 # 50MB
+    content_length = request.headers.get("Content-Length")
+    if content_length and int(content_length) > MAX_FILE_SIZE:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=413,
+            content={
+                "error": True, 
+                "code": "FILE_TOO_LARGE", 
+                "message": "File too large. Maximum allowed size is 50MB."
+            }
+        )
+
     response: Response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"

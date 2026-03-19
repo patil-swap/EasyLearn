@@ -24,22 +24,42 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # Simple in-memory status tracker for Phase 1
 processing_status = {}
 
+import magic
+from fastapi.responses import JSONResponse
+
+# Standardized Error Codes (PRD)
+class ErrorCodes:
+    FILE_TOO_LARGE = "FILE_TOO_LARGE"
+    BOOK_TOO_LONG = "BOOK_TOO_LONG"
+    SCANNED_PDF = "SCANNED_PDF"
+    INVALID_FORMAT = "INVALID_FORMAT"
+
 def process_book_background(book_id: str, file_path: str, file_format: str):
-    processing_status[book_id] = "processing"
+    processing_status[book_id] = {"status": "processing", "code": None, "message": None}
     try:
         documents = IngestionService.process_file(file_path, file_format)
-        if not documents or all(not d.get("content") for d in documents):
+        if not documents:
             raise ValueError("No readable text found in the document.")
         db_manager.create_collection_from_documents(book_id, documents)
-        processing_status[book_id] = "completed"
+        processing_status[book_id] = {"status": "completed", "code": None, "message": None}
     except Exception as e:
-        print(f"Error processing book {book_id}: {e}")
-        processing_status[book_id] = f"failed: {str(e)}"
+        error_msg = str(e)
+        code = ErrorCodes.INVALID_FORMAT
+        if "too long" in error_msg.lower():
+            code = ErrorCodes.BOOK_TOO_LONG
+        elif "scanned image" in error_msg.lower():
+            code = ErrorCodes.SCANNED_PDF
+        
+        processing_status[book_id] = {
+            "status": "failed",
+            "code": code,
+            "message": error_msg
+        }
     finally:
         if os.path.exists(file_path):
             os.remove(file_path)
 
-@router.post("/upload", response_model=BookUploadResponse)
+@router.post("/upload")
 @limiter.limit("5/hour")
 async def upload_book(
     request: Request,
@@ -50,14 +70,14 @@ async def upload_book(
 ):
     # Extension validation
     if not file.filename.lower().endswith(('.pdf', '.epub', '.txt')):
-        raise HTTPException(status_code=400, detail="Unsupported file extension. Use .pdf, .epub, or .txt")
-
-    # Size check
-    file.file.seek(0, os.SEEK_END)
-    file_size = file.file.tell()
-    file.file.seek(0)
-    if file_size > MAX_FILE_SIZE:
-        raise HTTPException(status_code=400, detail="File too large. Maximum size is 50MB.")
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": True,
+                "code": ErrorCodes.INVALID_FORMAT,
+                "message": "Unsupported file extension. Use .pdf, .epub, or .txt"
+            }
+        )
 
     book_id = str(uuid.uuid4())
     temp_file_path = os.path.join(UPLOAD_DIR, f"{book_id}_{file.filename}")
@@ -66,12 +86,26 @@ async def upload_book(
         shutil.copyfileobj(file.file, buffer)
 
     # MIME type validation
-    mime = magic.Magic(mime=True)
-    detected_mime = mime.from_file(temp_file_path)
-    allowed_mimes = ["application/pdf", "application/epub+zip", "text/plain"]
-    if detected_mime not in allowed_mimes:
-        os.remove(temp_file_path)
-        raise HTTPException(status_code=400, detail=f"Invalid file content. Detected MIME: {detected_mime}")
+    try:
+        mime = magic.Magic(mime=True)
+        detected_mime = mime.from_file(temp_file_path)
+        allowed_mimes = ["application/pdf", "application/epub+zip", "text/plain"]
+        if detected_mime not in allowed_mimes:
+            os.remove(temp_file_path)
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "error": True,
+                    "code": ErrorCodes.INVALID_FORMAT,
+                    "message": f"Invalid file content. Expected PDF/EPUB/TXT, detected {detected_mime}"
+                }
+            )
+    except Exception as e:
+        if os.path.exists(temp_file_path): os.remove(temp_file_path)
+        return JSONResponse(
+            status_code=500,
+            content={"error": True, "code": "SERVER_ERROR", "message": str(e)}
+        )
     
     background_tasks.add_task(process_book_background, book_id, temp_file_path, file_format)
     
@@ -83,12 +117,18 @@ async def upload_book(
 
 @router.get("/{book_id}/status")
 async def get_upload_status(book_id: str):
-    status = processing_status.get(book_id, "unknown")
-    if status == "unknown":
-        # Fallback to checking Chroma if memory lost/restarted
+    status_data = processing_status.get(book_id, "unknown")
+    if status_data == "unknown":
         try:
             db_manager.client.get_collection(f"book_{book_id}")
-            return {"book_id": book_id, "status": "completed"}
+            return {"book_id": book_id, "status": "completed", "code": None, "message": None}
         except Exception:
-            return {"book_id": book_id, "status": "processing"}
-    return {"book_id": book_id, "status": status}
+            return {"book_id": book_id, "status": "processing", "code": None, "message": None}
+    
+    if isinstance(status_data, str):
+        return {"book_id": book_id, "status": status_data, "code": None, "message": None}
+        
+    return {
+        "book_id": book_id,
+        **status_data
+    }

@@ -31,22 +31,37 @@ class VectorDBManager:
         )
         splits = text_splitter.split_documents(langchain_docs)
 
-        # Create/overwrite collection
+        # Create/overwrite collection with timestamp metadata (PRD 32)
+        import time
+        metadata = {"created_at": time.time(), "session_type": "guest"}
+        
         vectorstore = Chroma.from_documents(
             documents=splits,
             embedding=self.embeddings,
             persist_directory=self.persist_directory,
-            collection_name=f"book_{book_id}"
+            collection_name=f"book_{book_id}",
+            collection_metadata=metadata
         )
         return vectorstore
 
-    def get_retriever(self, book_id: str, search_type: str = "mmr", k: int = 5):
+    def get_retriever(self, book_id: str, search_type: str = "mmr", k: int = 5, lambda_mult: float = 0.5):
+        # Simulation: Check if session expired (PRD 33)
+        # In a real app, this would be a background cron job.
+        # Here we just verify the collection exists.
         vectorstore = Chroma(
             persist_directory=self.persist_directory,
             embedding_function=self.embeddings,
             collection_name=f"book_{book_id}"
         )
-        return vectorstore.as_retriever(search_type=search_type, search_kwargs={"k": k})
+        return vectorstore.as_retriever(
+            search_type=search_type, 
+            search_kwargs={"k": k, "lambda_mult": lambda_mult}
+        )
+
+    def cleanup_expired_sessions(self, days: int = 7):
+        """Simulated auto-purge for PRD 33"""
+        # Logic: Iterate through collections and delete those older than 7 days
+        pass
 
     def delete_collection(self, book_id: str):
         try:

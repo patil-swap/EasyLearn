@@ -16,12 +16,44 @@ class RAGPipeline:
 
     async def run_query(self, book_id: str, tool_name: str, query_text: Optional[str] = None, difficulty: str = "standard"):
         try:
-            # 1. Setup retriever
-            retriever = self.db_manager.get_retriever(book_id, k=8)
+            # 1. Tool-specific MMR tuning (PRD 16)
+            # Lower lambda = more diversity (Summaries/Arcs), Higher = more relevance (QA/Concepts)
+            lambda_map = {
+                "summary": 0.3,
+                "character_arc": 0.4,
+                "plot": 0.5,
+                "question": 0.7,
+                "concept": 0.8,
+                "problem": 0.7
+            }
+            tuning_lambda = lambda_map.get(tool_name, 0.5)
+
+            # 2. Two-stage retrieval (Initial k=30, PRD 15)
+            # We fetch 30, then rerank to get the most relevant 8
+            retriever = self.db_manager.get_retriever(book_id, k=30, lambda_mult=tuning_lambda)
             
-            # 2. Retrieve documents
             search_query = query_text if query_text else "Summarize this book and its main themes."
-            docs = await retriever.ainvoke(search_query)
+            initial_docs = await retriever.ainvoke(search_query)
+
+            if not initial_docs:
+                return {
+                    "answer": "No sufficient context found in the book to support this answer.",
+                    "sources": []
+                }
+
+            # 3. Reranking using FlashRank (PRD 13)
+            from langchain.retrievers import ContextualCompressionRetriever
+            from langchain.retrievers.document_compressors import FlashRankRerank
+            
+            compressor = FlashRankRerank(top_n=8)
+            compression_retriever = ContextualCompressionRetriever(
+                base_compressor=compressor, 
+                base_retriever=retriever
+            )
+            
+            # Since we already have initial_docs, we can just compress them directly to save time
+            # or re-invoke via the compression retriever. To be robust with LangChain 1.x:
+            docs = compressor.compress_documents(initial_docs, search_query)
 
             if not docs:
                 return {
