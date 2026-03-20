@@ -90,5 +90,100 @@ class TestEasyLearnCore(unittest.TestCase):
         mem2 = self.rag_pipeline.get_memory("book2")
         self.assertNotEqual(id(mem1), id(mem2))
 
+    def test_pdf_extraction(self):
+        """Verify real PDF text extraction with page metadata."""
+        from fpdf import FPDF
+        test_file = "test_extract.pdf"
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("helvetica", size=12)
+        # Use enough text to pass the 50-character minimum per page
+        large_text = "Hello PDF Content. This is a valid PDF page with enough content to pass the 50 character limit. " * 3
+        pdf.cell(200, 10, text=large_text, new_x="LMARGIN", new_y="NEXT", align='C')
+        pdf.output(test_file)
+        
+        try:
+            pages = IngestionService.extract_text_from_pdf(test_file)
+            self.assertGreater(len(pages), 0)
+            self.assertIn("page", pages[0]["metadata"])
+            self.assertIsInstance(pages[0]["metadata"]["page"], int)
+            self.assertIn("Hello PDF Content", pages[0]["content"])
+        finally:
+            if os.path.exists(test_file):
+                os.remove(test_file)
+
+    def test_epub_extraction(self):
+        """Verify real EPUB extraction with chapter titles and junk exclusion."""
+        from ebooklib import epub
+        test_file = "test_extract.epub"
+        book = epub.EpubBook()
+        book.set_identifier("id123")
+        book.set_title("Test Book")
+        book.set_language("en")
+        
+        c1 = epub.EpubHtml(title="Chapter 1", file_name="chap1.xhtml")
+        c1.content = "<html><body><h1>Chapter 1</h1><p>" + "This is chapter one. " * 10 + "</p></body></html>"
+        c2 = epub.EpubHtml(title="Chapter 2", file_name="chap2.xhtml")
+        c2.content = "<html><body><h1>Chapter 2</h1><p>" + "This is chapter two. " * 10 + "</p></body></html>"
+        
+        book.add_item(c1)
+        book.add_item(c2)
+        
+        # Define Table of Contents
+        book.toc = (epub.Link('chap1.xhtml', 'Chapter 1', 'chap1'),
+                    epub.Link('chap2.xhtml', 'Chapter 2', 'chap2'))
+        
+        # Add default NCX and Nav items
+        ncx = epub.EpubNcx()
+        nav = epub.EpubNav()
+        book.add_item(ncx)
+        book.add_item(nav)
+        
+        book.spine = [nav, c1, c2]
+        epub.write_epub(test_file, book)
+        
+        try:
+            chapters = IngestionService.extract_text_from_epub(test_file)
+            # Verify chapters (excluding nav.xhtml)
+            titles = [c["metadata"]["chapter_title"] for c in chapters]
+            self.assertIn("Chapter 1", titles)
+            self.assertIn("Chapter 2", titles)
+            self.assertNotIn("Nav", titles)
+            for ch in chapters:
+                self.assertIn("chapter_title", ch["metadata"])
+        finally:
+            if os.path.exists(test_file):
+                os.remove(test_file)
+
+    def test_epub_character_limit(self):
+        """Verify EPUB character limit (1.5M)."""
+        from ebooklib import epub
+        test_file = "large.epub"
+        book = epub.EpubBook()
+        book.set_identifier("id456")
+        book.set_title("Large Book")
+        
+        # Create a large content > 1.5M
+        large_body = "<p>" + ("A " * 800000) + "</p>"  # ~1.6M chars with spaces
+        c1 = epub.EpubHtml(title="Big Chap", file_name="big.xhtml")
+        c1.content = f"<html><body>{large_body}</body></html>".encode("utf-8")
+        book.add_item(c1)
+        
+        ncx = epub.EpubNcx()
+        nav = epub.EpubNav()
+        book.add_item(ncx)
+        book.add_item(nav)
+        
+        book.spine = [nav, c1]
+        epub.write_epub(test_file, book, options={"epub3_pages": False})
+        
+        try:
+            with self.assertRaises(RuntimeError) as cm:
+                IngestionService.process_file(test_file, "epub")
+            self.assertIn("too long", str(cm.exception))
+        finally:
+            if os.path.exists(test_file):
+                os.remove(test_file)
+
 if __name__ == "__main__":
     unittest.main()
