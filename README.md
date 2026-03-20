@@ -14,6 +14,7 @@ EasyLearn is a powerful, RAG-powered AI assistant designed to help you analyze, 
   - **Problem Solving**: Method-based solutions derived from technical texts.
   - **Two-Stage RAG Pipeline**: Uses **FlashRank Reranking** and **MMR (Maximal Marginal Relevance)** for 100% grounded answers.
   - **Academic Citation UX**: Responses include inline **clickable superscripts** with hover-ready excerpts.
+  - **Real-Time Streaming**: True asynchronous token-by-token streaming via Server-Sent Events (SSE) for instant, interactive AI responses.
   - **Real-Time Progress**: Multi-staged UI messaging (Uploading → Validating → Processing → Indexing).
   - **Security-First**: Prompt injection guards, rate limiting, and strict file validation.
 
