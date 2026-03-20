@@ -60,24 +60,20 @@ async def test_memory_injection_into_prompt(rag_pipeline, mock_llm_handler, mock
 @pytest.mark.asyncio
 async def test_reranker_and_mmr_usage(rag_pipeline, mock_db_manager, mock_llm_handler):
     """Verify that retrieval uses MMR and is followed by Flashrank reranking."""
-    # 1. MMR Check
     mock_retriever = MagicMock()
     mock_retriever.ainvoke = AsyncMock(return_value=[MagicMock(page_content="C", metadata={})] * 30)
     mock_db_manager.get_retriever.return_value = mock_retriever
-    
     mock_llm_handler.generate_response.return_value = "Answer"
-    
-    # 2. Flashrank Check
-    with patch("backend.core.rag_pipeline.FlashrankRerank", autospec=True) as mock_flashrank_class:
-        mock_instance = MagicMock()
-        mock_instance.compress_documents.return_value = [MagicMock(page_content="Reranked", metadata={})] * 8
-        mock_flashrank_class.return_value = mock_instance
-        
-        await rag_pipeline.run_query("book_rerank", "summary")
-        
-        # Verify initial retrieval was for 30 docs
-        mock_db_manager.get_retriever.assert_called_with("book_rerank", k=30, lambda_mult=pytest.approx(0.3))
-        
-        # Verify reranker was instantiated and called
-        assert mock_flashrank_class.called
-        assert mock_instance.compress_documents.called
+
+    # Patch the compressor instance directly since it's now set in __init__
+    rag_pipeline.compressor = MagicMock()
+    rag_pipeline.compressor.compress_documents.return_value = [
+        MagicMock(page_content="Reranked", metadata={})
+    ] * 8
+
+    await rag_pipeline.run_query("book_rerank", "summary")
+
+    mock_db_manager.get_retriever.assert_called_with(
+        "book_rerank", k=30, lambda_mult=pytest.approx(0.3)
+    )
+    assert rag_pipeline.compressor.compress_documents.called

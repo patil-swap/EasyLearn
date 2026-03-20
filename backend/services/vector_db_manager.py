@@ -3,16 +3,16 @@ from chromadb.config import Settings
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import os
 
 class VectorDBManager:
-    def __init__(self, persist_directory: str = "db"):
-        self.persist_directory = persist_directory
+    def __init__(self, persist_directory: Optional[str] = None):
+        self.persist_directory = persist_directory or os.environ.get("CHROMA_DB_PATH", "./db")
         self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-        self.client = chromadb.PersistentClient(path=persist_directory)
+        self.client = chromadb.PersistentClient(path=self.persist_directory)
 
-    def create_collection_from_documents(self, book_id: str, documents: List[Dict[str, Any]]):
+    def create_collection_from_documents(self, book_id: str, documents: List[Dict[str, Any]], book_type: str = "fiction"):
         # Flatten documents to LangChain format
         from langchain_core.documents import Document
         
@@ -36,7 +36,11 @@ class VectorDBManager:
 
         # Create/overwrite collection with timestamp metadata (PRD 32)
         import time
-        metadata = {"created_at": time.time(), "session_type": "guest"}
+        metadata = {
+            "created_at": time.time(), 
+            "session_type": "guest",
+            "book_type": book_type
+        }
         
         vectorstore = Chroma.from_documents(
             documents=splits,

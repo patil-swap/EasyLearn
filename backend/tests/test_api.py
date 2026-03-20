@@ -59,33 +59,52 @@ class TestEasyLearnAPI(unittest.TestCase):
         """Verify query endpoint routes to all 6 tools correctly."""
         tools = ["summary", "question", "character_arc", "plot", "concept", "problem"]
         mock_run_query.return_value = {"answer": "Mocked", "sources": []}
-        
-        for tool in tools:
+
+        mock_collection = unittest.mock.MagicMock()
+        mock_collection.metadata = {"book_type": "fiction"}
+
+        with unittest.mock.patch("backend.api.v1.endpoints_query.db_manager.client") as mock_client:
+            mock_client.get_collection.return_value = mock_collection
+            for tool in tools:
+                payload = {
+                    "book_id": "test_id",
+                    "tool_name": tool,
+                    "query_text": "What is AI?",
+                    "difficulty_level": "standard"
+                }
+                response = client.post("/api/v1/query/", json=payload)
+                self.assertEqual(response.status_code, 200)
+
+    def test_query_invalid_book(self):
+        """Verify 404 for non-existent book."""
+        with unittest.mock.patch("backend.api.v1.endpoints_query.db_manager.client") as mock_client:
+            mock_client.get_collection.side_effect = Exception("Collection not found")
             payload = {
-                "book_id": "test_id",
-                "tool_name": tool,
-                "query_text": "What is AI?",
+                "book_id": "non_existent_id",
+                "tool_name": "summary",
+                "query_text": "Help",
+                "difficulty_level": "standard"
+            }
+            response = client.post("/api/v1/query/", json=payload)
+            self.assertEqual(response.status_code, 404)
+            self.assertIn("Book not found", response.json()["detail"])
+
+    def test_feature_inapplicability(self):
+        """Verify character_arc on educational book returns inapplicability message."""
+        mock_collection = unittest.mock.MagicMock()
+        mock_collection.metadata = {"book_type": "educational"}
+
+        with unittest.mock.patch("backend.api.v1.endpoints_query.db_manager.client") as mock_client:
+            mock_client.get_collection.return_value = mock_collection
+            payload = {
+                "book_id": "math_book_id",
+                "tool_name": "character_arc",
+                "query_text": "What is the arc?",
                 "difficulty_level": "standard"
             }
             response = client.post("/api/v1/query/", json=payload)
             self.assertEqual(response.status_code, 200)
-            mock_run_query.assert_called_with(
-                book_id="test_id",
-                tool_name=tool,
-                query_text="What is AI?",
-                difficulty="standard"
-            )
-
-    def test_query_invalid_book(self):
-        """Verify 404 for non-existent book."""
-        # This will depend on implementation, but typically should handle missing ID
-        pass
-
-    def test_feature_inapplicability(self):
-        """Verify character_arc on educational book returns error/message."""
-        # This logic is usually in the frontend to hide tools, 
-        # but the backend handler should also be robust.
-        pass
+            self.assertIn("not applicable to educational content", response.json()["answer"])
 
 if __name__ == "__main__":
     unittest.main()

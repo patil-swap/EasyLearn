@@ -3,12 +3,16 @@ from backend.services.vector_db_manager import VectorDBManager
 from langchain_core.chat_history import InMemoryChatMessageHistory
 from typing import List, Dict, Any, Optional
 from langchain_community.document_compressors.flashrank_rerank import FlashrankRerank
+import logging
+
+logger = logging.getLogger(__name__)
 
 class RAGPipeline:
     def __init__(self, db_manager: VectorDBManager, llm_handler: LLMHandler):
         self.db_manager = db_manager
         self.llm_handler = llm_handler
         self.memories: Dict[str, InMemoryChatMessageHistory] = {}
+        self.compressor = FlashrankRerank(top_n=8)
 
     def get_memory(self, book_id: str) -> InMemoryChatMessageHistory:
         if book_id not in self.memories:
@@ -43,11 +47,11 @@ class RAGPipeline:
                 }
 
             # 3. Reranking using FlashRank (PRD 13)
-            compressor = FlashrankRerank(top_n=8)
+            # Using shared self.compressor initialized in __init__
             
             # Since we already have initial_docs, we can just compress them directly to save time
             # or re-invoke via the compression retriever. To be robust with LangChain 1.x:
-            docs = compressor.compress_documents(initial_docs, search_query)
+            docs = self.compressor.compress_documents(initial_docs, search_query)
 
             if not docs:
                 return {
@@ -90,8 +94,9 @@ class RAGPipeline:
                 "answer": answer,
                 "sources": sources
             }
-        except Exception as e:
+        except Exception:
+            logger.exception("RAG pipeline error for book_id=%s tool=%s", book_id, tool_name)
             return {
-                "answer": f"I am currently unable to access the knowledge base for this book due to a system error: {str(e)}",
+                "answer": "I am currently unable to access the knowledge base for this book due to a system error.",
                 "sources": []
             }

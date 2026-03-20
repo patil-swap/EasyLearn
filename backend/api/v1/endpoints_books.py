@@ -8,6 +8,9 @@ from backend.services.ingestion_service import IngestionService
 from backend.services.vector_db_manager import VectorDBManager
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 db_manager = VectorDBManager()
@@ -34,14 +37,16 @@ class ErrorCodes:
     SCANNED_PDF = "SCANNED_PDF"
     INVALID_FORMAT = "INVALID_FORMAT"
 
-def process_book_background(book_id: str, file_path: str, file_format: str):
+def process_book_background(book_id: str, file_path: str, file_format: str, book_type: str = "fiction"):
     processing_status[book_id] = {"status": "processing", "code": None, "message": None}
+    logger.info("Ingestion started for book_id=%s", book_id)
     try:
         documents = IngestionService.process_file(file_path, file_format)
         if not documents:
             raise ValueError("No readable text found in the document.")
-        db_manager.create_collection_from_documents(book_id, documents)
+        db_manager.create_collection_from_documents(book_id, documents, book_type=book_type)
         processing_status[book_id] = {"status": "completed", "code": None, "message": None}
+        logger.info("Ingestion completed for book_id=%s", book_id)
     except Exception as e:
         error_msg = str(e)
         code = ErrorCodes.INVALID_FORMAT
@@ -50,6 +55,7 @@ def process_book_background(book_id: str, file_path: str, file_format: str):
         elif "scanned image" in error_msg.lower():
             code = ErrorCodes.SCANNED_PDF
         
+        logger.error("Ingestion failed for book_id=%s: %s", book_id, error_msg)
         processing_status[book_id] = {
             "status": "failed",
             "code": code,
@@ -80,6 +86,7 @@ async def upload_book(
         )
 
     book_id = str(uuid.uuid4())
+    logger.info("Book upload received: filename=%s, type=%s, book_id=%s", file.filename, book_type, book_id)
     temp_file_path = os.path.join(UPLOAD_DIR, f"{book_id}_{file.filename}")
     
     with open(temp_file_path, "wb") as buffer:
@@ -107,7 +114,7 @@ async def upload_book(
             content={"error": True, "code": "SERVER_ERROR", "message": str(e)}
         )
     
-    background_tasks.add_task(process_book_background, book_id, temp_file_path, file_format)
+    background_tasks.add_task(process_book_background, book_id, temp_file_path, file_format, book_type)
     
     return {
         "book_id": book_id,
