@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Send, HelpCircle } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 
 interface Message {
   role: "user" | "assistant";
@@ -19,6 +20,27 @@ interface ChatWindowProps {
   isLoading: boolean;
   toolName: string;
   hideInput?: boolean;
+}
+
+const THINKING_MESSAGES = [
+  "Searching through the pages...",
+  "Reading between the lines...",
+  "Consulting the text...",
+  "Gathering context...",
+  "Piecing it together...",
+  "Cross-referencing chapters...",
+  "Analysing the content...",
+];
+
+function RotatingThinkingMessage() {
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIndex((i) => (i + 1) % THINKING_MESSAGES.length);
+    }, 2500);
+    return () => clearInterval(interval);
+  }, []);
+  return <span className="transition-all duration-500">{THINKING_MESSAGES[index]}</span>;
 }
 
 export function ChatWindow({ messages, onSendMessage, isLoading, toolName, hideInput }: ChatWindowProps) {
@@ -50,47 +72,100 @@ export function ChatWindow({ messages, onSendMessage, isLoading, toolName, hideI
               <p className="text-white/40 text-sm max-w-sm mx-auto">Select a tool on the left or type a question below to explore the contents of "{toolName}" Assistant.</p>
             </div>
           )}
-          {messages.map((m, i) => (
-            <div
-              key={i}
-              className={`flex ${m.role === "user" ? "justify-end" : "justify-start"} animate-in slide-in-from-bottom-2 duration-300`}
-            >
+          {messages.map((m, i) => {
+            if (m.role === "assistant" && !m.content && (!m.sources || m.sources.length === 0)) return null;
+            return (
               <div
-                className={`max-w-[85%] rounded-3xl px-6 py-4 text-[15px] leading-relaxed shadow-lg ${m.role === "user"
-                  ? "bg-[#1A73E8] text-white shadow-[#1A73E8]/10"
-                  : "bg-white/5 text-white border border-white/10 backdrop-blur-sm"
-                  }`}
+                key={i}
+                className={`flex ${m.role === "user" ? "justify-end" : "justify-start"} animate-in slide-in-from-bottom-2 duration-300`}
               >
-                <div className="whitespace-pre-wrap">
-                  {m.content.split(/(\[Chunk \d+\])/g).map((part, index) => {
-                    const match = part.match(/\[Chunk (\d+)\]/);
-                    if (match) {
-                      return (
-                        <sup
-                          key={index}
-                          className="text-[10px] font-bold text-[#1A73E8] bg-[#1A73E8]/10 px-0.5 rounded ml-0.5 cursor-help"
-                          title={`Source Chunk ${match[1]}`}
-                        >
-                          {match[1]}
-                        </sup>
-                      );
-                    }
-                    return part;
-                  })}
+                <div
+                  className={`max-w-[85%] rounded-3xl px-6 py-4 text-[15px] leading-relaxed shadow-lg ${m.role === "user"
+                    ? "bg-[#1A73E8] text-white shadow-[#1A73E8]/10"
+                    : "bg-white/5 text-white border border-white/10 backdrop-blur-sm"
+                    }`}
+                >
+                <div className="prose prose-invert prose-sm max-w-none">
+                  <ReactMarkdown
+                    components={{
+                      p: ({ node, children }) => (
+                        <p className="mb-4 last:mb-0">
+                          {Array.isArray(children) 
+                            ? children.map((child, idx) => {
+                                if (typeof child === 'string') {
+                                  return child.split(/(\[Chunk \d+\])/g).map((part, pIdx) => {
+                                    const match = part.match(/\[Chunk (\d+)\]/);
+                                    if (match) {
+                                      return (
+                                        <sup
+                                          key={`${idx}-${pIdx}`}
+                                          className="text-[10px] font-bold text-[#1A73E8] bg-[#1A73E8]/10 px-0.5 rounded ml-0.5 cursor-help"
+                                          title={`Source Chunk ${match[1]}`}
+                                        >
+                                          {match[1]}
+                                        </sup>
+                                      );
+                                    }
+                                    return part;
+                                  });
+                                }
+                                return child;
+                              })
+                            : children}
+                        </p>
+                      ),
+                      // Add similar handling for li if needed, or other block elements
+                      li: ({ children }) => (
+                        <li className="mb-1 last:mb-0">
+                          {Array.isArray(children)
+                            ? children.map((child, idx) => {
+                                if (typeof child === 'string') {
+                                  return child.split(/(\[Chunk \d+\])/g).map((part, pIdx) => {
+                                    const match = part.match(/\[Chunk (\d+)\]/);
+                                    if (match) {
+                                      return (
+                                        <sup
+                                          key={`${idx}-${pIdx}`}
+                                          className="text-[10px] font-bold text-[#1A73E8] bg-[#1A73E8]/10 px-0.5 rounded ml-0.5 cursor-help"
+                                          title={`Source Chunk ${match[1]}`}
+                                        >
+                                          {match[1]}
+                                        </sup>
+                                      );
+                                    }
+                                    return part;
+                                  });
+                                }
+                                return child;
+                              })
+                            : children}
+                        </li>
+                      ),
+                    }}
+                  >
+                    {m.content}
+                  </ReactMarkdown>
                 </div>
-                {m.sources && m.sources.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-white/10">
-                    <SourceViewer sources={m.sources} />
-                  </div>
-                )}
+                  {m.sources && m.sources.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-white/10">
+                      <SourceViewer sources={m.sources} />
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {isLoading && (
             <div className="flex justify-start">
-              <div className="bg-white/5 border border-white/10 rounded-full px-6 py-3 flex items-center gap-3">
-                <Loader2 className="h-4 w-4 animate-spin text-[#1A73E8]" />
-                <span className="text-xs text-white/40 font-medium">Assistant is thinking...</span>
+              <div className="bg-white/5 border border-white/10 rounded-2xl px-6 py-4 flex items-center gap-4">
+                <div className="flex gap-1">
+                  <span className="h-2 w-2 rounded-full bg-[#1A73E8] animate-bounce [animation-delay:0ms]" />
+                  <span className="h-2 w-2 rounded-full bg-[#1A73E8] animate-bounce [animation-delay:150ms]" />
+                  <span className="h-2 w-2 rounded-full bg-[#1A73E8] animate-bounce [animation-delay:300ms]" />
+                </div>
+                <span className="text-xs text-white/40 font-medium italic">
+                  <RotatingThinkingMessage />
+                </span>
               </div>
             </div>
           )}

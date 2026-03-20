@@ -25,9 +25,10 @@ interface ToolSelectorProps {
   difficulty: string;
   onDifficultyChange: (val: string) => void;
   variant?: "list" | "grid";
+  isLoading?: boolean;
 }
 
-export function ToolSelector({ activeTool, onToolChange, bookType, difficulty, onDifficultyChange, variant = "list" }: ToolSelectorProps) {
+export function ToolSelector({ activeTool, onToolChange, bookType, difficulty, onDifficultyChange, variant = "list", isLoading = false }: ToolSelectorProps) {
   const tools = [
     { id: "summary", label: "Summary", icon: FileText, actionLabel: "Summarize" },
     { id: "question", label: "QA", icon: HelpCircle, actionLabel: "Ask" },
@@ -50,13 +51,13 @@ export function ToolSelector({ activeTool, onToolChange, bookType, difficulty, o
           return (
             <button
               key={tool.id}
-              disabled={!isApplicable}
+              disabled={!isApplicable || isLoading}
               onClick={() => onToolChange(tool.id)}
               className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all duration-300 ${
                 isActive
                   ? "bg-[#1A73E8] border-[#1A73E8] text-white shadow-lg shadow-[#1A73E8]/20 scale-[1.02]"
                   : "bg-white border-[--border] text-[--text-charcoal] hover:border-[#1A73E8]/30 hover:bg-[#F8F9FA]"
-              } ${!isApplicable ? "opacity-30 grayscale cursor-not-allowed" : "cursor-pointer"}`}
+              } ${(!isApplicable || isLoading) ? "opacity-30 grayscale cursor-not-allowed" : "cursor-pointer"}`}
             >
               <tool.icon className={`h-5 w-5 mb-2 ${isActive ? "text-white" : "text-[#1A73E8]"}`} />
               <span className="text-[10px] font-bold uppercase tracking-tighter text-center leading-none">{tool.label}</span>
