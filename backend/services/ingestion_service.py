@@ -3,7 +3,8 @@ import ebooklib
 from ebooklib import epub
 from bs4 import BeautifulSoup
 import os
-from typing import List, Dict, Any
+import base64
+from typing import List, Dict, Any, Optional
 
 MAX_PAGES_PDF = 1000
 MAX_CHARS_EPUB_TXT = 1_500_000
@@ -122,18 +123,69 @@ class IngestionService:
 
         return [{"content": text, "metadata": {}}]
 
+    @staticmethod
+    def extract_cover_from_pdf(file_path: str) -> Optional[str]:
+        try:
+            doc = fitz.open(file_path)
+            if len(doc) == 0:
+                return None
+            page = doc.load_page(0)
+            pix = page.get_pixmap(matrix=fitz.Matrix(0.5, 0.5)) # low res for thumbnail
+            img_data = pix.tobytes("png")
+            return base64.b64encode(img_data).decode("utf-8")
+        except Exception:
+            return None
+
+    @staticmethod
+    def extract_cover_from_epub(file_path: str) -> Optional[str]:
+        try:
+            book = epub.read_epub(file_path)
+            # Try to find cover in metadata
+            cover_item = None
+            
+            # Method 1: Get cover from metadata
+            cover_id = None
+            for name, value in book.get_metadata('OPF', 'cover'):
+                cover_id = value
+                break
+            
+            if cover_id:
+                cover_item = book.get_item_with_id(cover_id)
+            
+            # Method 2: Look for items with 'cover' in name
+            if not cover_item:
+                for item in book.get_items():
+                    if item.get_type() == ebooklib.ITEM_IMAGE and "cover" in item.get_name().lower():
+                        cover_item = item
+                        break
+            
+            if cover_item:
+                return base64.b64encode(cover_item.get_content()).decode("utf-8")
+            return None
+        except Exception:
+            return None
+
     @classmethod
-    def process_file(cls, file_path: str, file_format: str) -> List[Dict[str, Any]]:
+    def process_file(cls, file_path: str, file_format: str) -> Dict[str, Any]:
         format_lower = file_format.lower()
         try:
+            docs = []
+            cover_data = None
             if format_lower == "pdf":
-                return cls.extract_text_from_pdf(file_path)
+                docs = cls.extract_text_from_pdf(file_path)
+                cover_data = cls.extract_cover_from_pdf(file_path)
             elif format_lower == "epub":
-                return cls.extract_text_from_epub(file_path)
+                docs = cls.extract_text_from_epub(file_path)
+                cover_data = cls.extract_cover_from_epub(file_path)
             elif format_lower == "txt":
-                return cls.extract_text_from_txt(file_path)
+                docs = cls.extract_text_from_txt(file_path)
             else:
                 raise ValueError(f"Unsupported file format: {file_format}")
+            
+            return {
+                "documents": docs,
+                "cover_data": cover_data
+            }
         except ValueError as e:
             # Validation errors — pass message through cleanly
             raise RuntimeError(str(e))

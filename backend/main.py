@@ -1,3 +1,11 @@
+import shutil
+import os
+
+for path in ["uploads", os.environ.get("CHROMA_DB_PATH", "./db")]:
+    if os.path.exists(path):
+        shutil.rmtree(path)
+    os.makedirs(path, mode=0o755, exist_ok=True)
+
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler

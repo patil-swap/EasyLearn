@@ -13,6 +13,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Book, FileText, Send, Loader2 } from "lucide-react";
 
 interface Message {
   role: "user" | "assistant";
@@ -21,15 +23,15 @@ interface Message {
 }
 
 export default function Home() {
-  const [book, setBook] = useState<{ id: string; title: string } | null>(null);
+  const [book, setBook] = useState<{ id: string; title: string; cover_data?: string | null } | null>(null);
   const [bookType, setBookType] = useState<string>("fiction");
   const [activeTool, setActiveTool] = useState("question");
   const [difficulty, setDifficulty] = useState("standard");
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleUploadComplete = (id: string, title: string) => {
-    setBook({ id, title });
+  const handleUploadComplete = (id: string, title: string, cover_data?: string | null) => {
+    setBook({ id, title, cover_data });
     setMessages([]); // Clear previous chat
   };
 
@@ -47,8 +49,8 @@ export default function Home() {
         text,
         difficulty
       );
-      const aiMessage: Message = { 
-        role: "assistant", 
+      const aiMessage: Message = {
+        role: "assistant",
         content: response.answer,
         sources: response.sources
       };
@@ -65,92 +67,181 @@ export default function Home() {
     }
   };
 
-  const handleToolChange = (tool: string) => {
-    setActiveTool(tool);
-    // Auto-trigger summary if selected
-    if (tool === "summary" && book && messages.length === 0) {
+  const [chatInput, setChatInput] = useState("");
+
+  const handleToolChange = (toolId: string) => {
+    setActiveTool(toolId);
+    
+    // Find tool info (simplified here, but could be a data map)
+    const toolPrefixes: Record<string, string> = {
+      summary: "Summarize this book.",
+      character_arc: "Analyze the character arc of: ",
+      plot: "Explain the plot points regarding: ",
+      concept: "Explain the concept of: ",
+      problem: "How can I solve the problem of: ",
+      question: ""
+    };
+
+    const prefix = toolPrefixes[toolId] || "";
+    setChatInput(prefix);
+    
+    // Auto-send if it's a direct command like summary
+    if (toolId === "summary") {
       handleSendMessage("Summarize this book.");
+      setChatInput("");
     }
   };
 
   return (
-    <main className="container mx-auto py-8 px-4 max-w-5xl">
-      <header className="mb-8 text-center">
-        <h1 className="text-3xl font-bold text-[#1A73E8] mb-2">EasyLearn AI Assistant</h1>
-        <p className="text-[#5F6368]">Your intelligent companion for deep book analysis.</p>
-      </header>
-
+    <main className={`min-h-screen transition-colors duration-500 ${!book ? "bg-background-dark" : "bg-background"}`}>
       {!book ? (
-        <div className="mt-12">
+        <div className="flex flex-col items-center justify-center min-h-screen">
           <BookUploader onUploadComplete={handleUploadComplete} />
         </div>
       ) : (
-        <div className="space-y-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 bg-white rounded-lg border border-[#E8EAED] shadow-sm">
-            <div>
-              <p className="text-xs text-[#5F6368] uppercase tracking-wider font-bold">Currently Reading</p>
-              <h2 className="text-lg font-semibold text-[#202124]">{book.title}</h2>
-            </div>
-            <button 
-              className="text-sm text-[#1A73E8] hover:underline"
-              onClick={() => setBook(null)}
-            >
-              Upload different book
-            </button>
-          </div>
+        <div className="flex h-screen overflow-hidden">
+          {/* Left Panel - 40% Width */}
+          <aside className="w-[40%] bg-white border-r border-[--border] flex z-10 overflow-hidden">
+            {/* Column 1 - 80% (Book Display) */}
+            <div className="w-[80%] h-full p-12 flex flex-col items-center justify-center border-r border-[--border] bg-gradient-to-b from-[#F8F9FA] to-white overflow-hidden relative">
+              <div className="w-full max-w-[320px] aspect-[3/4] rounded-3xl border border-[--border] flex items-center justify-center mb-10 relative group overflow-hidden shadow-2xl transition-transform duration-500 hover:scale-[1.02]">
+                <div className="absolute inset-0 bg-gradient-to-br from-[#1A73E8]/10 to-transparent z-10" />
+                {book.cover_data ? (
+                  <img
+                    src={`data:image/png;base64,${book.cover_data}`}
+                    alt={book.title}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center gap-4">
+                    <Book className="h-32 w-32 text-[#1A73E8]/20" />
+                    <span className="text-xs font-bold text-[#1A73E8]/30 uppercase tracking-widest">No Cover Available</span>
+                  </div>
+                )}
+              </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_300px] gap-6">
-            <div className="space-y-4">
-              <ToolSelector 
-                activeTool={activeTool} 
-                onToolChange={handleToolChange} 
-                bookType={bookType} 
-              />
-              
-              <ChatWindow 
-                messages={messages} 
-                onSendMessage={handleSendMessage} 
-                isLoading={isLoading}
-                toolName={activeTool}
-              />
-            </div>
+              <div className="text-center w-full px-6">
+                <p className="text-[10px] text-[--text-gray] uppercase tracking-[0.3em] font-black mb-3">Academic Resource</p>
+                <h2 className="text-3xl font-bold text-[--text-charcoal] mb-3 leading-tight line-clamp-2">{book.title}</h2>
+                <div className="flex flex-col items-center gap-4">
+                  <div className="flex items-center justify-center gap-2 text-sm text-[#34A853] font-semibold">
+                    <div className="h-2 w-2 bg-[#34A853] rounded-full animate-pulse" />
+                    Successfully Processed
+                  </div>
+                  <Button 
+                    variant="link" 
+                    className="text-[11.5px] font-bold text-[#1A73E8] p-0 h-auto hover:no-underline hover:text-[#165CB8]" 
+                    onClick={() => setBook(null)}
+                  >
+                    Switch Book
+                  </Button>
+                </div>
+              </div>
 
-            <div className="space-y-6">
-              {activeTool === "concept" && (
-                <Card className="p-4 border-[#E8EAED]">
-                  <Label className="mb-2 block">Adaptive Clarity</Label>
-                  <Select value={difficulty} onValueChange={setDifficulty}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="simplified">Simplified (5th Grade)</SelectItem>
-                      <SelectItem value="standard">Standard</SelectItem>
-                      <SelectItem value="advanced">Advanced (Researcher)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="mt-2 text-[11px] text-[#5F6368]">
-                    Adjust how the assistant explains complex concepts.
-                  </p>
-                </Card>
-              )}
-              
-              <div className="p-4 bg-[#F8F9FA] rounded-lg border border-[#E8EAED]">
-                <h4 className="text-sm font-bold text-[#202124] mb-2">Tool Guide</h4>
-                <p className="text-xs text-[#5F6368] leading-relaxed">
-                  {activeTool === "summary" && "Generates a < 200 word summary highlighting main themes."}
-                  {activeTool === "question" && "Ask anything about the book's content."}
-                  {activeTool === "character_arc" && "Synthesizes the journey of any character mentioned."}
-                  {activeTool === "plot" && "Summarizes specific chapters or the narrative arc."}
-                  {activeTool === "concept" && "Simplifies academic or technical concepts."}
-                  {activeTool === "problem" && "Provides step-by-step methods for educational problems."}
-                </p>
+              <div className="absolute bottom-12 w-full px-12">
+                <Button
+                  className="w-full h-14 rounded-2xl bg-[#1A73E8] hover:bg-[#165CB8] text-white font-bold shadow-xl shadow-[#1A73E8]/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => handleToolChange("summary")}
+                  disabled={isLoading}
+                >
+                  {isLoading && activeTool === "summary" ? (
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  ) : (
+                    <FileText className="mr-2 h-5 w-5" />
+                  )}
+                  {isLoading && activeTool === "summary" ? "Summarizing..." : "Summarize Book"}
+                </Button>
               </div>
             </div>
-          </div>
+
+            {/* Column 2 - 20% (Tools Only Icons/Labels) */}
+            <div className="w-[20%] h-full p-6 bg-[#F8F9FA]/50 overflow-y-auto custom-scrollbar flex flex-col">
+              <ToolSelector
+                activeTool={activeTool}
+                onToolChange={handleToolChange}
+                bookType={bookType}
+                difficulty={difficulty}
+                onDifficultyChange={setDifficulty}
+                variant="grid"
+              />
+              <div className="mt-8 text-center mt-auto">
+                <h3 className="text-[10px] font-black text-[--text-gray] uppercase tracking-[0.2em] mb-1">Quick</h3>
+                <h3 className="text-[10px] font-black text-[--text-gray] uppercase tracking-[0.2em]">Tools</h3>
+              </div>
+            </div>
+          </aside>
+
+          {/* Right Panel - 60% Width */}
+          <section className="w-[60%] bg-background-dark flex flex-col overflow-hidden">
+            <header className="p-10 pb-4 border-b border-white/5">
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <h1 className="text-3xl font-bold text-white mb-1">EasyLearn Assistant</h1>
+                  <p className="text-[#A1A1AA] text-sm">Artificial Intelligence for Academic Excellence</p>
+                </div>
+                <div className="flex gap-2">
+                   <div className="px-3 py-1 bg-white/5 rounded-full border border-white/10 text-[10px] text-white/60 font-medium">Session ID: {book.id.slice(0,8)}</div>
+                </div>
+              </div>
+            </header>
+
+            <div className="flex-1 overflow-hidden relative">
+              <div className="absolute inset-0 overflow-y-auto px-10 py-8 custom-scrollbar pb-32">
+                <ChatWindow
+                  messages={messages}
+                  onSendMessage={handleSendMessage}
+                  isLoading={isLoading}
+                  toolName={activeTool}
+                  hideInput={true}
+                />
+              </div>
+            </div>
+
+            {/* Persistent Chat Input Bar at the very bottom of the right panel */}
+            <footer className="p-6 bg-background-dark/80 backdrop-blur-xl border-t border-white/5 mt-auto">
+              <div className="max-w-3xl mx-auto">
+                <ChatInput
+                  onSendMessage={handleSendMessage}
+                  isLoading={isLoading}
+                  placeholder={`Ask anything about "${book.title}"...`}
+                  value={chatInput}
+                  onChange={setChatInput}
+                />
+              </div>
+            </footer>
+          </section>
         </div>
       )}
     </main>
+  );
+}
+
+function ChatInput({ onSendMessage, isLoading, placeholder, value, onChange }: { 
+  onSendMessage: (t: string) => void, 
+  isLoading: boolean, 
+  placeholder: string,
+  value: string,
+  onChange: (t: string) => void
+}) {
+  return (
+    <div className="flex gap-2">
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && !isLoading && value.trim() && (onSendMessage(value), onChange(""))}
+        placeholder={placeholder}
+        className="flex-1 h-14 bg-white/5 rounded-2xl px-6 text-sm text-white placeholder:text-white/20 outline-none border border-white/10 focus:border-[#1A73E8] focus:ring-4 focus:ring-[#1A73E8]/10 transition-all shadow-inner"
+        disabled={isLoading}
+      />
+      <Button
+        onClick={() => { onSendMessage(value); onChange(""); }}
+        disabled={isLoading || !value.trim()}
+        className="h-14 w-14 rounded-2xl bg-[#1A73E8] hover:bg-[#165CB8] shadow-lg shadow-[#1A73E8]/20 flex items-center justify-center p-0 shrink-0"
+      >
+        <Send className="h-6 w-6 text-white" />
+      </Button>
+    </div>
   );
 }
 

@@ -1,7 +1,7 @@
 import chromadb
 from chromadb.config import Settings
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
+from langchain_ollama import OllamaEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from typing import List, Dict, Any, Optional
 import os
@@ -9,7 +9,10 @@ import os
 class VectorDBManager:
     def __init__(self, persist_directory: Optional[str] = None):
         self.persist_directory = persist_directory or os.environ.get("CHROMA_DB_PATH", "./db")
-        self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+        self.embeddings = OllamaEmbeddings(
+            model="qwen3-embedding:0.6b",
+            base_url="http://127.0.0.1:11434"
+        )
         self.client = chromadb.PersistentClient(path=self.persist_directory)
 
     def create_collection_from_documents(self, book_id: str, documents: List[Dict[str, Any]], book_type: str = "fiction"):

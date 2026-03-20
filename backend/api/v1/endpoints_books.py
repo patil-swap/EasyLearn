@@ -20,6 +20,7 @@ class BookUploadResponse(BaseModel):
     book_id: str
     title: str
     status: str
+    cover_data: Optional[str] = None
 
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -38,14 +39,18 @@ class ErrorCodes:
     INVALID_FORMAT = "INVALID_FORMAT"
 
 def process_book_background(book_id: str, file_path: str, file_format: str, book_type: str = "fiction"):
-    processing_status[book_id] = {"status": "processing", "code": None, "message": None}
+    processing_status[book_id] = {"status": "processing", "code": None, "message": None, "cover_data": None}
     logger.info("Ingestion started for book_id=%s", book_id)
     try:
-        documents = IngestionService.process_file(file_path, file_format)
+        # Re-run process_file in background for the full document list and vector store
+        docs_data = IngestionService.process_file(file_path, file_format)
+        documents = docs_data["documents"]
+        cover_data = docs_data["cover_data"]
+        
         if not documents:
             raise ValueError("No readable text found in the document.")
         db_manager.create_collection_from_documents(book_id, documents, book_type=book_type)
-        processing_status[book_id] = {"status": "completed", "code": None, "message": None}
+        processing_status[book_id] = {"status": "completed", "code": None, "message": None, "cover_data": cover_data}
         logger.info("Ingestion completed for book_id=%s", book_id)
     except Exception as e:
         error_msg = str(e)
@@ -66,7 +71,7 @@ def process_book_background(book_id: str, file_path: str, file_format: str, book
             os.remove(file_path)
 
 @router.post("/upload")
-@limiter.limit("5/hour")
+@limiter.limit("15/hour")
 async def upload_book(
     request: Request,
     background_tasks: BackgroundTasks,
@@ -114,12 +119,21 @@ async def upload_book(
             content={"error": True, "code": "SERVER_ERROR", "message": str(e)}
         )
     
+    # Extract cover synchronously for immediate feedback if possible
+    cover_data = None
+    if file_format.lower() in ["pdf", "epub"]:
+        if file_format.lower() == "pdf":
+            cover_data = IngestionService.extract_cover_from_pdf(temp_file_path)
+        else:
+            cover_data = IngestionService.extract_cover_from_epub(temp_file_path)
+
     background_tasks.add_task(process_book_background, book_id, temp_file_path, file_format, book_type)
     
     return {
         "book_id": book_id,
         "title": file.filename,
-        "status": "processing"
+        "status": "processing",
+        "cover_data": cover_data
     }
 
 @router.get("/{book_id}/status")

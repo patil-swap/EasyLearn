@@ -4,6 +4,7 @@ export interface BookUploadResponse {
   book_id: string;
   title: string;
   status: string;
+  cover_data?: string;
 }
 
 export interface SourceMetadata {
@@ -38,7 +39,7 @@ export const api = {
     return response.json();
   },
 
-  getUploadStatus: async (book_id: string): Promise<{ book_id: string; status: string; code?: string; message?: string }> => {
+  getUploadStatus: async (book_id: string): Promise<{ book_id: string; status: string; code?: string; message?: string; cover_data?: string }> => {
     const response = await fetch(`${API_BASE_URL}/books/${book_id}/status`);
     if (!response.ok) {
         throw new Error("Failed to get status");

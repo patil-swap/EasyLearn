@@ -5,7 +5,7 @@ import { SourceMetadata } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Send } from "lucide-react";
+import { Loader2, Send, HelpCircle } from "lucide-react";
 
 interface Message {
   role: "user" | "assistant";
@@ -18,9 +18,10 @@ interface ChatWindowProps {
   onSendMessage: (text: string) => void;
   isLoading: boolean;
   toolName: string;
+  hideInput?: boolean;
 }
 
-export function ChatWindow({ messages, onSendMessage, isLoading, toolName }: ChatWindowProps) {
+export function ChatWindow({ messages, onSendMessage, isLoading, toolName, hideInput }: ChatWindowProps) {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -37,26 +38,27 @@ export function ChatWindow({ messages, onSendMessage, isLoading, toolName }: Cha
   };
 
   return (
-    <div className="flex flex-col h-[600px] bg-white rounded-xl border border-[#E8EAED] shadow-sm overflow-hidden">
-      <div className="p-4 border-b border-[#E8EAED] bg-[#F8F9FA]">
-        <h3 className="font-semibold text-[#202124] capitalize">{toolName} Assistant</h3>
-      </div>
-      <ScrollArea className="flex-1 p-4">
-        <div className="space-y-4">
+    <div className="flex flex-col w-full max-w-4xl mx-auto min-h-full">
+      <div className="flex-1">
+        <div className="space-y-8">
           {messages.length === 0 && (
-            <div className="text-center py-8">
-              <p className="text-[#5F6368]">Ask a question or select a tool to begin.</p>
+            <div className="text-center py-20 animate-in fade-in duration-1000">
+              <div className="inline-block p-4 rounded-full bg-white/5 border border-white/10 mb-4">
+                <HelpCircle className="h-12 w-12 text-white/20" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">How can I help you today?</h3>
+              <p className="text-white/40 text-sm max-w-sm mx-auto">Select a tool on the left or type a question below to explore the contents of "{toolName}" Assistant.</p>
             </div>
           )}
           {messages.map((m, i) => (
             <div
               key={i}
-              className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+              className={`flex ${m.role === "user" ? "justify-end" : "justify-start"} animate-in slide-in-from-bottom-2 duration-300`}
             >
               <div
-                className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm ${m.role === "user"
-                    ? "bg-[#1A73E8] text-white"
-                    : "bg-[#F1F3F4] text-[#202124]"
+                className={`max-w-[85%] rounded-3xl px-6 py-4 text-[15px] leading-relaxed shadow-lg ${m.role === "user"
+                  ? "bg-[#1A73E8] text-white shadow-[#1A73E8]/10"
+                  : "bg-white/5 text-white border border-white/10 backdrop-blur-sm"
                   }`}
               >
                 <div className="whitespace-pre-wrap">
@@ -64,8 +66,8 @@ export function ChatWindow({ messages, onSendMessage, isLoading, toolName }: Cha
                     const match = part.match(/\[Chunk (\d+)\]/);
                     if (match) {
                       return (
-                        <sup 
-                          key={index} 
+                        <sup
+                          key={index}
                           className="text-[10px] font-bold text-[#1A73E8] bg-[#1A73E8]/10 px-0.5 rounded ml-0.5 cursor-help"
                           title={`Source Chunk ${match[1]}`}
                         >
@@ -77,7 +79,7 @@ export function ChatWindow({ messages, onSendMessage, isLoading, toolName }: Cha
                   })}
                 </div>
                 {m.sources && m.sources.length > 0 && (
-                  <div className="mt-2 pt-2 border-t border-[#D1D3D4]">
+                  <div className="mt-4 pt-4 border-t border-white/10">
                     <SourceViewer sources={m.sources} />
                   </div>
                 )}
@@ -86,30 +88,15 @@ export function ChatWindow({ messages, onSendMessage, isLoading, toolName }: Cha
           ))}
           {isLoading && (
             <div className="flex justify-start">
-              <div className="bg-[#F1F3F4] rounded-2xl px-4 py-2">
-                <Loader2 className="h-4 w-4 animate-spin text-[#5F6368]" />
+              <div className="bg-white/5 border border-white/10 rounded-full px-6 py-3 flex items-center gap-3">
+                <Loader2 className="h-4 w-4 animate-spin text-[#1A73E8]" />
+                <span className="text-xs text-white/40 font-medium">Assistant is thinking...</span>
               </div>
             </div>
           )}
-          <div ref={bottomRef} />
+          <div ref={bottomRef} className="h-10" />
         </div>
-      </ScrollArea>
-      <form onSubmit={handleSubmit} className="p-4 border-t border-[#E8EAED] bg-white flex gap-2">
-        <Input
-          placeholder={toolName === "summary" ? "Click summary above..." : "Ask a question..."}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          disabled={isLoading || toolName === "summary"}
-          className="bg-[#F8F9FA] border-[#E8EAED] focus-visible:ring-[#1A73E8]"
-        />
-        <Button
-          type="submit"
-          disabled={isLoading || (toolName !== "summary" && !input.trim())}
-          className="bg-[#1A73E8] hover:bg-[#165CB8]"
-        >
-          <Send className="h-4 w-4" />
-        </Button>
-      </form>
+      </div>
     </div>
   );
 }
