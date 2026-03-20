@@ -13,6 +13,9 @@ def mock_llm_handler():
     handler = MagicMock(spec=LLMHandler)
     handler.system_prompts = {"summary": "Summary prompt", "question": "QA prompt"}
     handler.generate_response = AsyncMock()
+    async def mock_astream(*args, **kwargs):
+        yield "Mock"
+    handler.astream_response = MagicMock(side_effect=mock_astream)
     return handler
 
 @pytest.fixture
@@ -47,12 +50,11 @@ async def test_memory_injection_into_prompt(rag_pipeline, mock_llm_handler, mock
         mock_instance.compress_documents.return_value = [MagicMock(page_content="Context", metadata={})]
         mock_flashrank_class.return_value = mock_instance
         
-        mock_llm_handler.generate_response.return_value = "Mocked answer"
-        await rag_pipeline.run_query(book_id, "question", "Current query")
+        async for _ in rag_pipeline.run_query(book_id, "question", "Current query"): pass
     
-    # Check that generate_response was called with chat_history containing the previous messages
-    assert mock_llm_handler.generate_response.called
-    args, kwargs = mock_llm_handler.generate_response.call_args
+    # Check that astream_response was called with chat_history containing the previous messages
+    assert mock_llm_handler.astream_response.called
+    args, kwargs = mock_llm_handler.astream_response.call_args
     history = kwargs["chat_history"]
     assert any(m.content == "Prev User" for m in history)
     assert any(m.content == "Prev AI" for m in history)
@@ -63,15 +65,13 @@ async def test_reranker_and_mmr_usage(rag_pipeline, mock_db_manager, mock_llm_ha
     mock_retriever = MagicMock()
     mock_retriever.ainvoke = AsyncMock(return_value=[MagicMock(page_content="C", metadata={})] * 30)
     mock_db_manager.get_retriever.return_value = mock_retriever
-    mock_llm_handler.generate_response.return_value = "Answer"
-
     # Patch the compressor instance directly since it's now set in __init__
     rag_pipeline.compressor = MagicMock()
     rag_pipeline.compressor.compress_documents.return_value = [
         MagicMock(page_content="Reranked", metadata={})
     ] * 8
 
-    await rag_pipeline.run_query("book_rerank", "summary")
+    async for _ in rag_pipeline.run_query("book_rerank", "summary"): pass
 
     mock_db_manager.get_retriever.assert_called_with(
         "book_rerank", k=30, lambda_mult=pytest.approx(0.3)

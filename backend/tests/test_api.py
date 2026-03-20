@@ -104,7 +104,7 @@ class TestEasyLearnAPI(unittest.TestCase):
             }
             response = client.post("/api/v1/query/", json=payload)
             self.assertEqual(response.status_code, 200)
-            self.assertIn("not applicable to educational content", response.json()["answer"])
+            self.assertIn("not applicable to educational content", response.text)
 
 if __name__ == "__main__":
     unittest.main()

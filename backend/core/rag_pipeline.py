@@ -20,6 +20,15 @@ class RAGPipeline:
         return self.memories[book_id]
 
     async def run_query(self, book_id: str, tool_name: str, query_text: Optional[str] = None, difficulty: str = "standard"):
+
+        DEFAULT_QUERIES = {
+            "summary": "main themes plot characters story overview",
+            "character_arc": f"character journey development emotions {query_text or ''}",
+            "plot": "plot events story narrative what happened",
+            "concept": f"concept explanation definition {query_text or ''}",
+            "problem": f"problem solution method steps {query_text or ''}",
+            "question": query_text or "",
+        }
         try:
             # 1. Tool-specific MMR tuning (PRD 16)
             # Lower lambda = more diversity (Summaries/Arcs), Higher = more relevance (QA/Concepts)
@@ -37,14 +46,13 @@ class RAGPipeline:
             # We fetch 30, then rerank to get the most relevant 8
             retriever = self.db_manager.get_retriever(book_id, k=30, lambda_mult=tuning_lambda)
             
-            search_query = query_text if query_text else "Summarize this book and its main themes."
+            search_query = query_text if query_text else DEFAULT_QUERIES.get(tool_name, "main themes and content")
             initial_docs = await retriever.ainvoke(search_query)
 
             if not initial_docs:
-                return {
-                    "answer": "No sufficient context found in the book to support this answer.",
-                    "sources": []
-                }
+                yield {"type": "token", "value": "No sufficient context found in the book to support this answer."}
+                yield {"type": "sources", "value": []}
+                return
 
             # 3. Reranking using FlashRank (PRD 13)
             # Using shared self.compressor initialized in __init__
@@ -54,10 +62,9 @@ class RAGPipeline:
             docs = self.compressor.compress_documents(initial_docs, search_query)
 
             if not docs:
-                return {
-                    "answer": "No sufficient context found in the book to support this answer.",
-                    "sources": []
-                }
+                yield {"type": "token", "value": "No sufficient context found in the book to support this answer."}
+                yield {"type": "sources", "value": []}
+                return
 
             # 3. Format context
             context_str = ""
@@ -77,26 +84,27 @@ class RAGPipeline:
             all_messages = memory.messages
             chat_history = all_messages[-10:] if len(all_messages) > 10 else all_messages
 
-            # 5. Generate response
-            answer = await self.llm_handler.generate_response(
+            # 5. Generate streaming response
+            full_answer = ""
+            async for chunk in self.llm_handler.astream_response(
                 tool_name=tool_name,
                 context=context_str,
                 user_input=search_query,
                 difficulty=difficulty,
                 chat_history=chat_history
-            )
+            ):
+                full_answer += chunk
+                yield {"type": "token", "value": chunk}
 
             # 6. Save to memory
             memory.add_user_message(search_query)
-            memory.add_ai_message(answer)
+            memory.add_ai_message(full_answer)
 
-            return {
-                "answer": answer,
-                "sources": sources
-            }
+            # 7. Yield sources
+            yield {"type": "sources", "value": sources}
+
         except Exception:
             logger.exception("RAG pipeline error for book_id=%s tool=%s", book_id, tool_name)
-            return {
-                "answer": "I am currently unable to access the knowledge base for this book due to a system error.",
-                "sources": []
-            }
+            yield {"type": "token", "value": "I am currently unable to access the knowledge base for this book due to a system error."}
+            yield {"type": "sources", "value": []}
+

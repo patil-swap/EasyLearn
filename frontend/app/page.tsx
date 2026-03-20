@@ -37,41 +37,56 @@ export default function Home() {
 
   const handleSendMessage = async (text: string) => {
     if (!book) return;
-
-    const userMessage: Message = { role: "user", content: text };
-    setMessages((prev) => [...prev, userMessage]);
     setIsLoading(true);
 
-    try {
-      const response = await api.executeQuery(
-        book.id,
-        activeTool,
-        text,
-        difficulty
-      );
-      const aiMessage: Message = {
-        role: "assistant",
-        content: response.answer,
-        sources: response.sources
-      };
-      setMessages((prev) => [...prev, aiMessage]);
-    } catch (error) {
-      console.error("Query failed", error);
-      const errorMessage: Message = {
-        role: "assistant",
-        content: "I'm sorry, I encountered an error while processing your request. Please try again."
-      };
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-    }
+    setMessages((prev) => [...prev, { role: "user", content: text }]);
+    setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+
+    await api.streamQuery(
+      book.id,
+      activeTool,
+      text,
+      difficulty,
+      (token) => {
+        setMessages((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = {
+            ...updated[updated.length - 1],
+            content: updated[updated.length - 1].content + token,
+          };
+          return updated;
+        });
+      },
+      (sources) => {
+        setMessages((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = {
+            ...updated[updated.length - 1],
+            sources,
+          };
+          return updated;
+        });
+      },
+      () => setIsLoading(false),
+      (error) => {
+        setMessages((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = {
+            ...updated[updated.length - 1],
+            content: `Error: ${error}`,
+          };
+          return updated;
+        });
+        setIsLoading(false);
+      }
+    );
   };
 
   const [chatInput, setChatInput] = useState("");
 
   const handleToolChange = (toolId: string) => {
     setActiveTool(toolId);
-    
+
     // Find tool info (simplified here, but could be a data map)
     const toolPrefixes: Record<string, string> = {
       summary: "Summarize this book.",
@@ -84,7 +99,7 @@ export default function Home() {
 
     const prefix = toolPrefixes[toolId] || "";
     setChatInput(prefix);
-    
+
     // Auto-send if it's a direct command like summary
     if (toolId === "summary") {
       handleSendMessage("Summarize this book.");
@@ -121,41 +136,32 @@ export default function Home() {
               </div>
 
               <div className="text-center w-full px-6">
-                <p className="text-[10px] text-[--text-gray] uppercase tracking-[0.3em] font-black mb-3">Academic Resource</p>
+                <p className="text-[10px] text-[--text-gray] uppercase tracking-[0.3em] font-black mb-3">
+                  {bookType === "fiction" ? "Literary Archive" : "Academic Resource"}
+                </p>
                 <h2 className="text-3xl font-bold text-[--text-charcoal] mb-3 leading-tight line-clamp-2">{book.title}</h2>
                 <div className="flex flex-col items-center gap-4">
                   <div className="flex items-center justify-center gap-2 text-sm text-[#34A853] font-semibold">
                     <div className="h-2 w-2 bg-[#34A853] rounded-full animate-pulse" />
                     Successfully Processed
                   </div>
-                  <Button 
-                    variant="link" 
-                    className="text-[11.5px] font-bold text-[#1A73E8] p-0 h-auto hover:no-underline hover:text-[#165CB8]" 
+                  <Button
+                    variant="link"
+                    className="text-[13.5px] font-bold text-[#1A73E8] p-0 h-auto hover:no-underline hover:text-[#165CB8]"
                     onClick={() => setBook(null)}
                   >
                     Switch Book
                   </Button>
                 </div>
               </div>
-
-              <div className="absolute bottom-12 w-full px-12">
-                <Button
-                  className="w-full h-14 rounded-2xl bg-[#1A73E8] hover:bg-[#165CB8] text-white font-bold shadow-xl shadow-[#1A73E8]/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  onClick={() => handleToolChange("summary")}
-                  disabled={isLoading}
-                >
-                  {isLoading && activeTool === "summary" ? (
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  ) : (
-                    <FileText className="mr-2 h-5 w-5" />
-                  )}
-                  {isLoading && activeTool === "summary" ? "Summarizing..." : "Summarize Book"}
-                </Button>
-              </div>
             </div>
 
             {/* Column 2 - 20% (Tools Only Icons/Labels) */}
             <div className="w-[20%] h-full p-6 bg-[#F8F9FA]/50 overflow-y-auto custom-scrollbar flex flex-col">
+              <div className="mb-8 text-center">
+                <h3 className="text-[10px] font-black text-[--text-gray] uppercase tracking-[0.2em] mb-1">Quick</h3>
+                <h3 className="text-[10px] font-black text-[--text-gray] uppercase tracking-[0.2em]">Tools</h3>
+              </div>
               <ToolSelector
                 activeTool={activeTool}
                 onToolChange={handleToolChange}
@@ -163,11 +169,8 @@ export default function Home() {
                 difficulty={difficulty}
                 onDifficultyChange={setDifficulty}
                 variant="grid"
+                isLoading={isLoading}
               />
-              <div className="mt-8 text-center mt-auto">
-                <h3 className="text-[10px] font-black text-[--text-gray] uppercase tracking-[0.2em] mb-1">Quick</h3>
-                <h3 className="text-[10px] font-black text-[--text-gray] uppercase tracking-[0.2em]">Tools</h3>
-              </div>
             </div>
           </aside>
 
@@ -180,7 +183,7 @@ export default function Home() {
                   <p className="text-[#A1A1AA] text-sm">Artificial Intelligence for Academic Excellence</p>
                 </div>
                 <div className="flex gap-2">
-                   <div className="px-3 py-1 bg-white/5 rounded-full border border-white/10 text-[10px] text-white/60 font-medium">Session ID: {book.id.slice(0,8)}</div>
+                  <div className="px-3 py-1 bg-white/5 rounded-full border border-white/10 text-[10px] text-white/60 font-medium">Session ID: {book.id.slice(0, 8)}</div>
                 </div>
               </div>
             </header>
@@ -216,9 +219,9 @@ export default function Home() {
   );
 }
 
-function ChatInput({ onSendMessage, isLoading, placeholder, value, onChange }: { 
-  onSendMessage: (t: string) => void, 
-  isLoading: boolean, 
+function ChatInput({ onSendMessage, isLoading, placeholder, value, onChange }: {
+  onSendMessage: (t: string) => void,
+  isLoading: boolean,
   placeholder: string,
   value: string,
   onChange: (t: string) => void

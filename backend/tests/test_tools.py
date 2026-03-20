@@ -13,6 +13,9 @@ def mock_db_manager():
 def mock_llm_handler():
     handler = MagicMock(spec=LLMHandler)
     handler.generate_response = AsyncMock()
+    async def mock_astream(*args, **kwargs):
+        yield "Mock answer [Chunk 1]"
+    handler.astream_response = MagicMock(side_effect=mock_astream)
     return handler
 
 @pytest.fixture
@@ -35,9 +38,14 @@ async def test_summary_tool_constraints(rag_pipeline, mock_db_manager, mock_llm_
         mock_flashrank_class.return_value = mock_instance
         
         # Mock long summary
-        mock_llm_handler.generate_response.return_value = "Paragraph 1.\n\nParagraph 2."
+        async def mock_astream(*args, **kwargs):
+            yield "Paragraph 1.\n\nParagraph 2."
+        mock_llm_handler.astream_response.side_effect = mock_astream
         
-        result = await rag_pipeline.run_query("test_book", "summary")
+        result = {"answer": "", "sources": []}
+        async for chunk in rag_pipeline.run_query("test_book", "summary"):
+            if chunk["type"] == "token": result["answer"] += chunk["value"]
+            elif chunk["type"] == "sources": result["sources"] = chunk["value"]
     
     assert "answer" in result
     assert "sources" in result
@@ -64,11 +72,14 @@ async def test_concept_tool_difficulty_routing(rag_pipeline, mock_db_manager, mo
         mock_instance.compress_documents.return_value = mock_docs
         mock_flashrank_class.return_value = mock_instance
         
-        mock_llm_handler.generate_response.return_value = "Simplified response"
-        await rag_pipeline.run_query("book1", "concept", difficulty="simplified")
+        async def mock_astream(*args, **kwargs):
+            yield "Simplified response"
+        mock_llm_handler.astream_response.side_effect = mock_astream
+
+        async for _ in rag_pipeline.run_query("book1", "concept", difficulty="simplified"): pass
     
     # Check that it was called with difficulty="simplified"
-    mock_llm_handler.generate_response.assert_called_with(
+    mock_llm_handler.astream_response.assert_called_with(
         tool_name="concept",
         context=unittest.mock.ANY,
         user_input=unittest.mock.ANY,
@@ -83,7 +94,10 @@ async def test_empty_retrieval_handling(rag_pipeline, mock_db_manager):
     mock_retriever.ainvoke = AsyncMock(return_value=[])
     mock_db_manager.get_retriever.return_value = mock_retriever
     
-    result = await rag_pipeline.run_query("book_empty", "question", "What is X?")
+    result = {"answer": "", "sources": []}
+    async for chunk in rag_pipeline.run_query("book_empty", "question", "What is X?"):
+        if chunk["type"] == "token": result["answer"] += chunk["value"]
+        elif chunk["type"] == "sources": result["sources"] = chunk["value"]
     
     assert "No sufficient context found" in result["answer"]
     assert result["sources"] == []
@@ -103,10 +117,11 @@ async def test_all_tools_return_citations(rag_pipeline, mock_db_manager, mock_ll
         mock_instance.compress_documents.return_value = mock_docs
         mock_flashrank_class.return_value = mock_instance
         
-        mock_llm_handler.generate_response.return_value = "Mock answer [Chunk 1]"
-
         for tool in tools:
-            result = await rag_pipeline.run_query("book_id", tool, "Query")
+            result = {"answer": "", "sources": []}
+            async for chunk in rag_pipeline.run_query("book_id", tool, "Query"):
+                if chunk["type"] == "token": result["answer"] += chunk["value"]
+                elif chunk["type"] == "sources": result["sources"] = chunk["value"]
             assert result["answer"] != ""
             assert len(result["sources"]) > 0
             assert result["sources"][0]["chunk_id"] == "Chunk 1"

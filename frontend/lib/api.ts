@@ -42,7 +42,7 @@ export const api = {
   getUploadStatus: async (book_id: string): Promise<{ book_id: string; status: string; code?: string; message?: string; cover_data?: string }> => {
     const response = await fetch(`${API_BASE_URL}/books/${book_id}/status`);
     if (!response.ok) {
-        throw new Error("Failed to get status");
+      throw new Error("Failed to get status");
     }
     return response.json();
   },
@@ -72,4 +72,63 @@ export const api = {
 
     return response.json();
   },
-};
+
+  streamQuery: async (
+    bookId: string,
+    toolName: string,
+    queryText: string,
+    difficultyLevel: string,
+    onToken: (token: string) => void,
+    onSources: (sources: SourceMetadata[]) => void,
+    onDone: () => void,
+    onError: (error: string) => void
+  ): Promise<void> => {
+    const res = await fetch(`${API_BASE_URL}/query/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        book_id: bookId,
+        tool_name: toolName,
+        query_text: queryText,
+        difficulty_level: difficultyLevel,
+      }),
+    });
+
+    if (!res.ok) {
+      const error = await res.json();
+      onError(error.detail || "Query failed");
+      return;
+    }
+
+    const reader = res.body?.getReader();
+    const decoder = new TextDecoder();
+    if (!reader) return;
+
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop() || "";
+
+      for (const part of parts) {
+        const line = part.split("\n").find((l) => l.startsWith("data: "));
+        if (line) {
+          try {
+            const data = JSON.parse(line.substring(6));
+            if (data.type === "token") onToken(data.value);
+            if (data.type === "sources") onSources(data.value);
+            if (data.type === "done") onDone();
+            if (data.type === "error") onError(data.value);
+          } catch {
+            // Malformed SSE line, skip
+          }
+        }
+      }
+    }
+
+  }
+}

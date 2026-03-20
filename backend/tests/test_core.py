@@ -18,7 +18,8 @@ class TestEasyLearnCore(unittest.TestCase):
         with open(test_file, "w") as f:
             f.write(content)
         
-        docs = IngestionService.process_file(test_file, "txt")
+        result = IngestionService.process_file(test_file, "txt")
+        docs = result["documents"]
         self.assertGreater(len(docs), 0)
         self.assertEqual(docs[0]["content"], content)
         os.remove(test_file)
