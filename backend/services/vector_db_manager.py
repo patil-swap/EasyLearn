@@ -31,6 +31,9 @@ class VectorDBManager:
         )
         splits = text_splitter.split_documents(langchain_docs)
 
+        # Delete existing collection if it exists to ensure replacement (PRD 12)
+        self.delete_collection(book_id)
+
         # Create/overwrite collection with timestamp metadata (PRD 32)
         import time
         metadata = {"created_at": time.time(), "session_type": "guest"}

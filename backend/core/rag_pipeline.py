@@ -2,6 +2,7 @@ from backend.core.llm_handler import LLMHandler
 from backend.services.vector_db_manager import VectorDBManager
 from langchain_core.chat_history import InMemoryChatMessageHistory
 from typing import List, Dict, Any, Optional
+from langchain_community.document_compressors.flashrank_rerank import FlashrankRerank
 
 class RAGPipeline:
     def __init__(self, db_manager: VectorDBManager, llm_handler: LLMHandler):
@@ -42,14 +43,7 @@ class RAGPipeline:
                 }
 
             # 3. Reranking using FlashRank (PRD 13)
-            from langchain.retrievers import ContextualCompressionRetriever
-            from langchain.retrievers.document_compressors import FlashRankRerank
-            
-            compressor = FlashRankRerank(top_n=8)
-            compression_retriever = ContextualCompressionRetriever(
-                base_compressor=compressor, 
-                base_retriever=retriever
-            )
+            compressor = FlashrankRerank(top_n=8)
             
             # Since we already have initial_docs, we can just compress them directly to save time
             # or re-invoke via the compression retriever. To be robust with LangChain 1.x:
