@@ -119,7 +119,6 @@ export function BookUploader({
             </div>
           ) : (
             <>
-              <div className="mb-3 text-[12px] md:hidden">→</div>
               <div className="hidden md:block mb-6 text-text-main">
                 <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
                   <path d="M20 10V30M10 20H30" stroke="currentColor" strokeWidth="1" />

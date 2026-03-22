@@ -15,7 +15,12 @@ interface ChatWindowProps {
 export function ChatWindow({ messages, isLoading, chatInput, setChatInput, onSendMessage, messagesEndRef, children }: ChatWindowProps) {
   return (
     <>
-      <div className="flex-1 overflow-y-auto p-5 md:p-8 flex flex-col gap-6 md:gap-0">
+      <div className="flex-1 overflow-y-auto min-h-0 p-5 md:p-8 flex flex-col gap-6 md:gap-0">
+        {/* Render children (like Active Source and Tools Grid) at the top of scroll view on mobile */}
+        <div className="md:hidden">
+          {children}
+        </div>
+        
         {messages.length === 0 && (
           <div className="md:hidden max-w-[90%] text-[14px] leading-[1.5] self-start text-text-main">
             <div className="flex items-center gap-1.5 text-[11px] text-green-600 dark:text-green-400 font-semibold mb-2">
@@ -61,7 +66,12 @@ export function ChatWindow({ messages, isLoading, chatInput, setChatInput, onSen
                   <span className="text-[11px] text-text-mut uppercase block mb-1">Query</span>
                   <h3 className="text-[13px] font-medium m-0">Analysis Request</h3>
                 </div>
-                <div className="md:col-start-2 md:col-end-4 max-w-[90%] md:max-w-none self-end md:self-auto bg-primary text-primary-foreground p-3 px-4 rounded-[18px_18px_2px_18px] md:bg-transparent md:text-text-main md:p-0 md:rounded-none md:text-[18px] text-[14px] leading-[1.5] md:leading-[1.4] tracking-[-0.3px]">
+                {/* Mobile User Message Bubble Style */}
+                <div className="md:hidden max-w-[88%] text-[13px] leading-[1.5] self-end bg-[#f4f4f4] dark:bg-[#222] text-text-main p-[12px_16px] rounded-[16px_16px_4px_16px] border border-border">
+                  {m.content}
+                </div>
+                {/* Desktop User Message Style */}
+                <div className="hidden md:block md:col-start-2 md:col-end-4 md:max-w-none md:text-text-main md:text-[18px] leading-[1.4] tracking-[-0.3px]">
                   {m.content}
                 </div>
               </div>
@@ -71,9 +81,11 @@ export function ChatWindow({ messages, isLoading, chatInput, setChatInput, onSen
         <div ref={messagesEndRef} className="h-4" />
       </div>
 
-      {children}
+      <div className="hidden md:block">
+        {children}
+      </div>
 
-      <div className="md:border-t md:border-border md:bg-background p-4 px-5 md:p-6 pb-8 md:pb-6 bg-background sticky bottom-0">
+      <div className="shrink-0 md:border-t md:border-border md:bg-background p-4 px-5 md:p-6 pb-8 md:pb-6 bg-background sticky bottom-0 z-10 w-full">
         <div className="flex items-center gap-3 bg-secondary md:bg-transparent rounded-[24px] md:rounded-none p-2 md:p-0 pl-4 md:pl-0">
           <input
             type="text"

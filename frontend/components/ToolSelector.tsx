@@ -18,7 +18,9 @@ export function ToolSelector({ toolsList, activeTool, onToolClick, isLoading, bo
             <span className="md:hidden">Analysis Tools</span>
             <span className="hidden md:block">Active Tool</span>
           </div>
-          <ThemeToggle />
+          <div className="hidden md:block">
+            <ThemeToggle />
+          </div>
         </div>
         <div className="grid grid-cols-2 md:flex md:flex-wrap gap-2.5 md:gap-2 md:opacity-40 md:pointer-events-none">
           {toolsList.map(t => (
@@ -33,16 +35,19 @@ export function ToolSelector({ toolsList, activeTool, onToolClick, isLoading, bo
 
   if (variant === "mobile_tabs") {
     return (
-      <div className="md:hidden flex gap-2 py-3 px-5 overflow-x-auto border-t border-border bg-background" style={{ scrollbarWidth: 'none' }}>
-        {toolsList.map(t => (
-          <button
-            key={t.id}
-            onClick={() => onToolClick(t.id)}
-            disabled={t.disabled || isLoading}
-            className={`whitespace-nowrap px-4 py-2 rounded-full font-medium text-[12px] border ${t.disabled || isLoading ? 'opacity-30 cursor-not-allowed' : ''} ${activeTool === t.id ? 'bg-accent text-white border-accent' : 'bg-pill-bg text-text-mut border-border'}`}>
-            {t.label}
-          </button>
-        ))}
+      <div className="md:hidden">
+        <div className="grid grid-cols-2 gap-2">
+          {toolsList.map(t => (
+            <button
+              key={t.id}
+              onClick={() => onToolClick(t.id)}
+              disabled={t.disabled || isLoading}
+              className={`flex items-center gap-2 px-3 py-3 border rounded-lg text-[11px] font-medium transition-all text-left ${t.disabled || isLoading ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer hover:bg-pill-hover'} ${activeTool === t.id ? 'bg-accent text-white border-accent' : 'bg-background text-text-main border-border'}`}>
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${activeTool === t.id ? 'bg-white' : 'bg-[#ddd]'}`}></span>
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
     );
   }

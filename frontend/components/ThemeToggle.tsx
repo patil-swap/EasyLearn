@@ -5,16 +5,9 @@ export function ThemeToggle() {
   const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
-    // Defer the check to bypass synchronous render cycle effect warnings
     setTimeout(() => {
-      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
       const isDarkClass = document.documentElement.classList.contains("dark");
-      if (isDarkClass || prefersDark) {
-        setIsDark(true);
-        document.documentElement.classList.add("dark");
-      } else {
-        document.documentElement.classList.remove("dark");
-      }
+      setIsDark(isDarkClass);
     }, 0);
   }, []);
 
