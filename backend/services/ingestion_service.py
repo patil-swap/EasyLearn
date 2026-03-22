@@ -4,6 +4,8 @@ from ebooklib import epub
 from bs4 import BeautifulSoup
 import os
 import base64
+import re
+import unicodedata
 from typing import List, Dict, Any, Optional
 
 MAX_PAGES_PDF = 1000
@@ -11,8 +13,38 @@ MAX_CHARS_EPUB_TXT = 1_500_000
 
 EPUB_SKIP_NAMES = {"nav.xhtml", "toc.xhtml", "cover.xhtml", "title.xhtml", "copyright.xhtml", "dedication.xhtml"}
 EPUB_SKIP_PREFIXES = ("css/", "styles/", "fonts/", "images/")
+INJECTION_PATTERNS = [
+    r'(?i)(ignore|disregard|forget|override|new\s+instructions?|you\s+are\s+now|system\s+prompt)',
+    r'(?i)(previous\s+(instructions?|prompts?|rules?|context))',
+    r'(?i)(from\s+now\s+on|act\s+as|role\s+play|become)',
+    r'(?i)(output\s+only|respond\s+with|print\s+the\s+following)',
+    r'(?i)(secret|override|admin|backdoor|leak|send\s+to|email|http)',
+    r'(?i)(base64|data:application|javascript:|eval\()',
+    r'(?i)(white\s+text|hidden|invisible|font-size:0|color:\s*white|display:\s*none)',
+]
 
 class IngestionService:
+
+    @staticmethod
+    def sanitize_text(text: str) -> str:
+        # Step 1: Unicode normalization + remove zero-width / control characters
+        text = unicodedata.normalize('NFKC', text)
+        text = re.sub(r'[\u200B-\u200D\uFEFF\u2028\u2029]', '', text)
+        text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', text)
+
+        # Step 2: Remove suspicious invisible / styling tricks often used in PDFs
+        text = re.sub(r'(?i)(font-size:\s*0|color:\s*white|visibility:\s*hidden|display:\s*none)', '', text)
+
+        # Step 3: Pattern-based rejection (fail-fast)
+        for pattern in INJECTION_PATTERNS:
+            if re.search(pattern, text):
+                raise ValueError(
+                    "Potential malicious content detected in uploaded file "
+                    "(possible indirect prompt injection attempt). File rejected."
+                )
+        text = re.sub(r'<(script|style|iframe|object|embed|form)[^>]*>.*?</\1>', '', text, flags=re.DOTALL | re.I)
+
+        return text.strip()
 
     @staticmethod
     def extract_text_from_pdf(file_path: str) -> List[Dict[str, Any]]:
@@ -35,11 +67,17 @@ class IngestionService:
         pages = []
         for page_num in range(len(doc)):
             page = doc.load_page(page_num)
-            text = page.get_text().strip()
-            if len(text) < 50:  # skip near-empty pages (images, blank pages)
+            raw_text = page.get_text("text").strip()
+
+            try:
+                clean_text = IngestionService.sanitize_text(raw_text)
+            except ValueError as e:
+                raise ValueError(f"Security rejection on page {page_num+1}: {str(e)}")
+
+            if len(clean_text) < 50:
                 continue
             pages.append({
-                "content": text,
+                "content": clean_text,
                 "metadata": {"page": page_num + 1}
             })
 
@@ -82,8 +120,12 @@ class IngestionService:
 
             text = soup.get_text(separator=" ", strip=True)
 
-            # Skip near-empty items
-            if len(text) < 100:
+            try:
+                clean_text = IngestionService.sanitize_text(text)
+            except ValueError as e:
+                raise ValueError(f"Security rejection in EPUB chapter '{chapter_title}': {str(e)}")
+
+            if len(clean_text) < 100:
                 continue
 
             # Character count limit
@@ -97,7 +139,7 @@ class IngestionService:
             chapter_title = toc_titles.get(item.get_name(), item.get_name())
 
             chapters.append({
-                "content": text,
+                "content": clean_text,
                 "metadata": {"chapter_title": chapter_title}
             })
 
@@ -113,10 +155,15 @@ class IngestionService:
         with open(file_path, "r", encoding="utf-8") as f:
             text = f.read()
 
-        if len(text.strip()) == 0:
+        try:
+            clean_text = IngestionService.sanitize_text(text)
+        except ValueError as e:
+            raise ValueError(f"Security rejection in TXT file: {str(e)}")
+
+        if len(clean_text.strip()) == 0:
             raise ValueError("The uploaded TXT file appears to be empty.")
 
-        if len(text) > MAX_CHARS_EPUB_TXT:
+        if len(clean_text) > MAX_CHARS_EPUB_TXT:
             raise ValueError(
                 "Book too long. Maximum supported length is 1,500,000 characters."
             )
@@ -186,8 +233,7 @@ class IngestionService:
                 "documents": docs,
                 "cover_data": cover_data
             }
-        except ValueError as e:
-            # Validation errors — pass message through cleanly
-            raise RuntimeError(str(e))
+        except ValueError as ve:
+            raise RuntimeError(f"File rejected: {str(ve)}")
         except Exception as e:
-            raise RuntimeError(f"Could not parse {file_format} file: {str(e)}")
+            raise RuntimeError(f"Could not process {file_format} file: {str(e)}")
