@@ -1,130 +1,69 @@
-"use client";
+import { ThemeToggle } from "./ThemeToggle";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  FileText,
-  HelpCircle,
-  Users,
-  Layout,
-  Lightbulb,
-  Wrench,
-  ArrowRight
-} from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 interface ToolSelectorProps {
+  toolsList: Array<{ id: string; label: string; disabled: boolean }>;
   activeTool: string;
-  onToolChange: (tool: string) => void;
-  bookType: string;
-  difficulty: string;
-  onDifficultyChange: (val: string) => void;
-  variant?: "list" | "grid";
-  isLoading?: boolean;
+  onToolClick: (id: string) => void;
+  isLoading: boolean;
+  book: { id: string; title: string; cover_data?: string | null } | null;
+  variant?: "desktop" | "mobile_tabs" | "empty_state";
 }
 
-export function ToolSelector({ activeTool, onToolChange, bookType, difficulty, onDifficultyChange, variant = "list", isLoading = false }: ToolSelectorProps) {
-  const tools = [
-    { id: "summary", label: "Summary", icon: FileText, actionLabel: "Summarize" },
-    { id: "question", label: "QA", icon: HelpCircle, actionLabel: "Ask" },
-    { id: "character_arc", label: "Characters", icon: Users, fictionOnly: true, actionLabel: "Analyze" },
-    { id: "plot", label: "Plot", icon: Layout, actionLabel: "Explain" },
-    { id: "concept", label: "Concepts", icon: Lightbulb, educationalOnly: true, actionLabel: "Teach" },
-    { id: "problem", label: "Problems", icon: Wrench, educationalOnly: true, actionLabel: "Solve" },
-  ];
-
-  if (variant === "grid") {
+export function ToolSelector({ toolsList, activeTool, onToolClick, isLoading, book, variant = "desktop" }: ToolSelectorProps) {
+  if (variant === "empty_state") {
     return (
-      <div className="grid grid-cols-1 gap-3 w-full">
-        {tools.map((tool) => {
-          const isApplicable = !(
-            (tool.fictionOnly && bookType !== "fiction") ||
-            (tool.educationalOnly && bookType !== "educational")
-          );
-          const isActive = activeTool === tool.id;
-
-          return (
-            <button
-              key={tool.id}
-              disabled={!isApplicable || isLoading}
-              onClick={() => onToolChange(tool.id)}
-              className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all duration-300 ${
-                isActive
-                  ? "bg-[#1A73E8] border-[#1A73E8] text-white shadow-lg shadow-[#1A73E8]/20 scale-[1.02]"
-                  : "bg-white border-[--border] text-[--text-charcoal] hover:border-[#1A73E8]/30 hover:bg-[#F8F9FA]"
-              } ${(!isApplicable || isLoading) ? "opacity-30 grayscale cursor-not-allowed" : "cursor-pointer"}`}
-            >
-              <tool.icon className={`h-5 w-5 mb-2 ${isActive ? "text-white" : "text-[#1A73E8]"}`} />
-              <span className="text-[10px] font-bold uppercase tracking-tighter text-center leading-none">{tool.label}</span>
+      <section className="p-5 md:p-6 border-b border-border flex flex-col gap-3">
+        <div className="flex justify-between items-center w-full mb-2 md:mb-0">
+          <div className="text-[11px] md:text-[13px] text-text-mut md:text-text-main uppercase md:lowercase tracking-wider md:tracking-normal font-medium md:font-normal block">
+            <span className="md:hidden">Analysis Tools</span>
+            <span className="hidden md:block">Active Tool</span>
+          </div>
+          <ThemeToggle />
+        </div>
+        <div className="grid grid-cols-2 md:flex md:flex-wrap gap-2.5 md:gap-2 md:opacity-40 md:pointer-events-none">
+          {toolsList.map(t => (
+            <button key={t.id} disabled={t.disabled || isLoading} onClick={(e) => { e.stopPropagation(); if (book) onToolClick(t.id); }} className={`bg-pill-bg text-text-main border-none rounded-[4px] md:rounded-full px-3 py-3 md:px-[14px] md:py-[6px] text-[12px] md:text-[11px] flex items-center gap-2 text-left md:text-center ${activeTool === t.id ? "md:bg-accent md:text-white" : ""}`}>
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${activeTool === t.id ? "md:bg-text-main bg-[#ccc]" : "bg-[#999] md:opacity-100"}`}></span>{t.label}
             </button>
-          );
-        })}
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (variant === "mobile_tabs") {
+    return (
+      <div className="md:hidden flex gap-2 py-3 px-5 overflow-x-auto border-t border-border bg-background" style={{ scrollbarWidth: 'none' }}>
+        {toolsList.map(t => (
+          <button
+            key={t.id}
+            onClick={() => onToolClick(t.id)}
+            disabled={t.disabled || isLoading}
+            className={`whitespace-nowrap px-4 py-2 rounded-full font-medium text-[12px] border ${t.disabled || isLoading ? 'opacity-30 cursor-not-allowed' : ''} ${activeTool === t.id ? 'bg-accent text-white border-accent' : 'bg-pill-bg text-text-mut border-border'}`}>
+            {t.label}
+          </button>
+        ))}
       </div>
     );
   }
 
-  // Original list variant (for reference or other pages)
   return (
-    <div className="space-y-4 max-w-4xl">
-      {tools.map((tool, index) => {
-        const isApplicable = !(
-          (tool.fictionOnly && bookType !== "fiction") ||
-          (tool.educationalOnly && bookType !== "educational")
-        );
-        const isActive = activeTool === tool.id;
-
-        return (
-          <div
-            key={tool.id}
-            className={`group relative bg-white/5 backdrop-blur-sm rounded-2xl p-6 border transition-all duration-300 ${isActive
-              ? "border-[#1A73E8] shadow-[0_0_25px_rgba(26,115,232,0.15)] ring-1 ring-[#1A73E8]"
-              : "border-white/10 hover:border-white/20 shadow-sm"
-              } ${!isApplicable ? "opacity-30 grayscale-[0.8]" : ""}`}
-          >
-            <div className="flex items-start gap-6">
-              <div className="text-sm font-black text-white/20 mt-1 w-4">
-                {String(index + 1).padStart(2, '0')}
-              </div>
-
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-1">
-                  <div className={`p-2 rounded-lg ${isActive ? "bg-[#1A73E8] text-white" : "bg-white/5 text-white/70"}`}>
-                    <tool.icon className="h-5 w-5" />
-                  </div>
-                  <h3 className="text-lg font-bold text-white">{tool.label}</h3>
-                  {!isApplicable && (
-                    <span className="text-[10px] bg-white/5 text-white/40 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
-                      Not Applicable
-                    </span>
-                  )}
-                </div>
-                {/* Description removed as per new tools array structure */}
-                {/* Input and Difficulty Select removed as per new tools array structure */}
-              </div>
-
-              <div className="flex flex-col items-end gap-2 shrink-0">
-                <Button
-                  variant="outline"
-                  disabled={!isApplicable}
-                  onClick={() => onToolChange(tool.id)}
-                  className={`h-11 px-6 rounded-xl font-bold transition-all ${isActive
-                    ? "border-[#1A73E8] text-[#1A73E8] bg-[#1A73E8]/10 hover:bg-[#1A73E8]/20"
-                    : "border-white/20 text-white bg-transparent hover:bg-white/10 hover:border-white"
-                    }`}
-                >
-                  {tool.actionLabel}
-                  <ArrowRight className={`ml-2 h-4 w-4 ${isActive ? "animate-pulse" : ""}`} />
-                </Button>
-              </div>
-            </div>
-          </div>
-        );
-      })}
+    <div className="hidden md:flex p-6 border-b border-border flex-col gap-3">
+      <div className="flex items-center justify-between w-full">
+         <div className="text-[13px] text-text-main">Active Tool</div>
+         <ThemeToggle />
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {toolsList.map(t => (
+          <button
+            key={t.id}
+            onClick={() => onToolClick(t.id)}
+            disabled={t.disabled || isLoading}
+            className={`border-none rounded-full px-[14px] py-[6px] text-[11px] flex items-center gap-2 transition-all duration-200 ${t.disabled || isLoading ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'} ${activeTool === t.id ? 'bg-accent text-white' : 'bg-pill-bg text-text-main hover:bg-[#e5e5e5]'}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${activeTool === t.id ? 'bg-white text-main' : 'bg-[#999]'}`}></span>{t.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

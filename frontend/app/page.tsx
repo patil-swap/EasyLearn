@@ -1,22 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import { api, SourceMetadata } from "@/lib/api";
 import { BookUploader } from "@/components/BookUploader";
 import { ToolSelector } from "@/components/ToolSelector";
 import { ChatWindow } from "@/components/ChatWindow";
-import { api, SourceMetadata } from "@/lib/api";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Book, FileText, Send, Loader2 } from "lucide-react";
 
-interface Message {
+export interface Message {
   role: "user" | "assistant";
   content: string;
   sources?: SourceMetadata[];
@@ -25,28 +15,96 @@ interface Message {
 export default function Home() {
   const [book, setBook] = useState<{ id: string; title: string; cover_data?: string | null } | null>(null);
   const [bookType, setBookType] = useState<string>("fiction");
-  const [activeTool, setActiveTool] = useState("question");
-  const [difficulty, setDifficulty] = useState("standard");
+  const [fileFormat, setFileFormat] = useState<string>("epub");
+  const [activeTool, setActiveTool] = useState("Summary");
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [chatInput, setChatInput] = useState("");
+  const [progressStage, setProgressStage] = useState<string>("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  const handleUploadComplete = (id: string, title: string, cover_data?: string | null) => {
-    setBook({ id, title, cover_data });
-    setMessages([]); // Clear previous chat
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isLoading]);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    if (!file) return;
+
+    if (file.size > 50 * 1024 * 1024) {
+      console.error("Maximum allowed size is 50MB.");
+      return;
+    }
+
+    setSelectedFile(file);
   };
 
-  const handleSendMessage = async (text: string) => {
-    if (!book) return;
+  const handleUploadStart = async () => {
+    if (!selectedFile) return;
+
+    setIsUploading(true);
+    setProgressStage("Uploading...");
+
+    try {
+      const uploadRes = await api.uploadBook(selectedFile, bookType, fileFormat);
+      const bookId = uploadRes.book_id;
+      const initialCover = uploadRes.cover_data;
+
+      let attempts = 0;
+      const pollStatus = async () => {
+        try {
+          const statusRes = await api.getUploadStatus(bookId);
+          if (statusRes.status === "completed") {
+            setBook({ id: bookId, title: selectedFile.name, cover_data: statusRes.cover_data || initialCover });
+            setMessages([]);
+            setIsUploading(false);
+            setSelectedFile(null);
+            return;
+          }
+          if (statusRes.status === "failed") {
+            console.error(statusRes.message || "Failed");
+            setIsUploading(false);
+            return;
+          }
+          if (attempts < 2) setProgressStage("Validating...");
+          else if (attempts < 5) setProgressStage("Extracting...");
+          else setProgressStage("Vectorizing...");
+          attempts++;
+          if (attempts < 100) setTimeout(pollStatus, 1500);
+          else {
+            console.error("Timed out");
+            setIsUploading(false);
+          }
+        } catch {
+          console.error("Lost connection");
+          setIsUploading(false);
+        }
+      };
+      pollStatus();
+    } catch (err) {
+      console.error(err instanceof Error ? err.message : String(err));
+      setIsUploading(false);
+    }
+  };
+
+  const handleSendMessage = async (text: string, overrideTool?: string) => {
+    if (!book || !text.trim()) return;
     setIsLoading(true);
 
-    setMessages((prev) => [...prev, { role: "user", content: text }]);
+    const userMessage = text.trim();
+    setChatInput("");
+    setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
     setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
 
+    const toolToUse = overrideTool || activeTool;
     await api.streamQuery(
       book.id,
-      activeTool,
-      text,
-      difficulty,
+      toolToUse.toLowerCase().replace(" ", "_"), // simple mapping
+      userMessage,
+      "standard",
       (token) => {
         setMessages((prev) => {
           const updated = [...prev];
@@ -82,176 +140,211 @@ export default function Home() {
     );
   };
 
-  const [chatInput, setChatInput] = useState("");
+  const toolsList = [
+    { id: "Summary", label: "Summary", disabled: false },
+    { id: "Question", label: "Question", disabled: false },
+    { id: "Character Arc", label: "Character Arc", disabled: bookType !== "fiction" },
+    { id: "Plot", label: "Plot", disabled: false },
+    { id: "Concept", label: "Concept", disabled: bookType !== "educational" },
+    { id: "Problem", label: "Problem", disabled: bookType !== "educational" },
+  ];
 
-  const handleToolChange = (toolId: string) => {
-    setActiveTool(toolId);
-
-    // Find tool info (simplified here, but could be a data map)
-    const toolPrefixes: Record<string, string> = {
-      summary: "Summarize this book.",
-      character_arc: "Analyze the character arc of: ",
-      plot: "Explain the plot points regarding: ",
-      concept: "Explain the concept of: ",
-      problem: "How can I solve the problem of: ",
-      question: ""
+  const handleToolClick = (t: string) => {
+    setActiveTool(t);
+    const prefixes: Record<string, string> = {
+      "Summary": "Summarize this book.",
+      "Character Arc": "Analyze the character arc of: ",
+      "Plot": "Explain the plot points regarding: ",
+      "Concept": "Explain the concept of: ",
+      "Problem": "How can I solve the problem of: ",
+      "Question": ""
     };
-
-    const prefix = toolPrefixes[toolId] || "";
-    setChatInput(prefix);
-
-    // Auto-send if it's a direct command like summary
-    if (toolId === "summary") {
-      handleSendMessage("Summarize this book.");
+    if (t === "Summary") {
       setChatInput("");
+      handleSendMessage("Summarize this book.", t);
+    } else {
+      setChatInput(prefixes[t] || "");
     }
   };
 
   return (
-    <main className={`min-h-screen transition-colors duration-500 ${!book ? "bg-background-dark" : "bg-background"}`}>
-      {!book ? (
-        <div className="flex flex-col items-center justify-center min-h-screen">
-          <BookUploader onUploadComplete={handleUploadComplete} />
-        </div>
-      ) : (
-        <div className="flex h-screen overflow-hidden">
-          {/* Left Panel - 40% Width */}
-          <aside className="w-[40%] bg-white border-r border-[--border] flex z-10 overflow-hidden">
-            {/* Column 1 - 80% (Book Display) */}
-            <div className="w-[80%] h-full p-12 flex flex-col items-center justify-center border-r border-[--border] bg-gradient-to-b from-[#F8F9FA] to-white overflow-hidden relative">
-              <div className="w-full max-w-[320px] aspect-[3/4] rounded-3xl border border-[--border] flex items-center justify-center mb-10 relative group overflow-hidden shadow-2xl transition-transform duration-500 hover:scale-[1.02]">
-                <div className="absolute inset-0 bg-gradient-to-br from-[#1A73E8]/10 to-transparent z-10" />
-                {book.cover_data ? (
-                  <img
-                    src={`data:image/png;base64,${book.cover_data}`}
-                    alt={book.title}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="flex flex-col items-center gap-4">
-                    <Book className="h-32 w-32 text-[#1A73E8]/20" />
-                    <span className="text-xs font-bold text-[#1A73E8]/30 uppercase tracking-widest">No Cover Available</span>
-                  </div>
-                )}
-              </div>
+    <div className="font-sans antialiased text-text-main min-h-screen md:bg-background md:flex md:justify-center md:items-center">
 
-              <div className="text-center w-full px-6">
-                <p className="text-[10px] text-[--text-gray] uppercase tracking-[0.3em] font-black mb-3">
-                  {bookType === "fiction" ? "Literary Archive" : "Academic Resource"}
-                </p>
-                <h2 className="text-3xl font-bold text-[--text-charcoal] mb-3 leading-tight line-clamp-2">{book.title}</h2>
-                <div className="flex flex-col items-center gap-4">
-                  <div className="flex items-center justify-center gap-2 text-sm text-[#34A853] font-semibold">
-                    <div className="h-2 w-2 bg-[#34A853] rounded-full animate-pulse" />
-                    Successfully Processed
-                  </div>
-                  <Button
-                    variant="link"
-                    className="text-[13.5px] font-bold text-[#1A73E8] p-0 h-auto hover:no-underline hover:text-[#165CB8]"
-                    onClick={() => setBook(null)}
-                  >
-                    Switch Book
-                  </Button>
+      {/* Container simulating the desktop or mobile frame */}
+      <div className="md:max-w-[1440px] md:w-full md:h-screen md:border-l md:border-r md:border-border flex flex-col bg-background shadow-none relative overflow-hidden">
+
+        {/* Header */}
+        <header className="p-5 md:py-8 md:px-6 border-b border-border bg-background flex justify-between md:grid md:grid-cols-4 md:items-start items-center z-10 sticky top-0 md:static">
+          <div className="flex px-1 items-center gap-2 font-medium text-[16px] md:text-[16px] md:col-start-1 md:col-end-2 tracking-tight">
+            <span className="md:hidden">easylearn</span>
+          </div>
+
+          <div className="hidden md:block col-start-2 col-end-3 text-[24px] leading-[1.1] tracking-[-0.5px]">
+            <span className="text-text-mut text-[14px] block mb-0">easylearn</span>
+            Intelligence
+          </div>
+
+          <div className="hidden md:flex col-start-3 col-end-5 gap-4 items-start text-[13px] text-text-mut">
+            <div>Our RAG framework is a fusion of lexical search and modern LLM tech, redefining deep reading with pinpoint extraction and analysis.</div>
+          </div>
+
+          {/* Mobile Active Book Pill */}
+          {book && (
+            <div className="md:hidden flex items-center gap-2 bg-pill-bg px-3 py-1.5 rounded-full border border-border max-w-[200px]">
+              <span className="text-[11px] font-medium whitespace-nowrap overflow-hidden text-ellipsis">{book.title}</span>
+            </div>
+          )}
+
+          {/* Mobile Menu Icon */}
+          {!book && (
+            <div className="md:hidden cursor-pointer">
+              <svg width="20" height="6" viewBox="0 0 24 8" fill="none">
+                <rect width="24" height="1.5" fill="#111"></rect>
+                <rect y="6" width="24" height="1.5" fill="#111"></rect>
+              </svg>
+            </div>
+          )}
+        </header>
+
+        {/* Toolbar (Desktop Only OR Mobile Tabs) */}
+        {(!book || isUploading || selectedFile) ? (
+          <ToolSelector
+            toolsList={toolsList}
+            activeTool={activeTool}
+            onToolClick={handleToolClick}
+            isLoading={isLoading || isUploading}
+            book={book}
+            variant="empty_state"
+          />
+        ) : (
+          <ToolSelector
+            toolsList={toolsList}
+            activeTool={activeTool}
+            onToolClick={handleToolClick}
+            isLoading={isLoading}
+            book={book}
+            variant="desktop"
+          />
+        )}
+
+        {/* Main Workspace */}
+        <main className={`flex-1 flex flex-col md:grid md:grid-cols-4 overflow-hidden`}>
+
+          {/* Sidebar (Desktop Only) */}
+          <aside className="hidden md:flex col-start-1 col-end-2 border-r border-border flex-col min-h-0">
+            {(!book || isUploading || selectedFile) ? (
+              <>
+                <div className="p-6 border-b border-border">
+                  <span className="text-[11px] text-text-mut block mb-1">Status: Waiting</span>
+                  <h2 className="text-[13px] font-medium m-0">No active document</h2>
                 </div>
-              </div>
-            </div>
-
-            {/* Column 2 - 20% (Tools Only Icons/Labels) */}
-            <div className="w-[20%] h-full p-6 bg-[#F8F9FA]/50 overflow-y-auto custom-scrollbar flex flex-col">
-              <div className="mb-8 text-center">
-                <h3 className="text-[10px] font-black text-[--text-gray] uppercase tracking-[0.2em] mb-1">Quick</h3>
-                <h3 className="text-[10px] font-black text-[--text-gray] uppercase tracking-[0.2em]">Tools</h3>
-              </div>
-              <ToolSelector
-                activeTool={activeTool}
-                onToolChange={handleToolChange}
-                bookType={bookType}
-                difficulty={difficulty}
-                onDifficultyChange={setDifficulty}
-                variant="grid"
-                isLoading={isLoading}
-              />
-            </div>
+                <div className="p-6 flex-1">
+                  <p className="text-[13px] text-text-mut leading-[1.6] m-0">
+                    Upload a document to begin analysis. Our system supports high-density text extraction for complex narrative and technical structures.
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="p-6 border-b border-border">
+                  <span className="text-[11px] text-text-mut block mb-1">Status: Active</span>
+                  <h2 className="text-[13px] font-medium m-0 truncate break-all">{book.title}</h2>
+                </div>
+                <div className="p-6 flex-1 border-b border-border flex flex-col items-center">
+                  {book.cover_data ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={book.cover_data.startsWith('http') || book.cover_data.startsWith('data:') ? book.cover_data : `data:image/jpeg;base64,${book.cover_data}`}
+                      alt="Cover"
+                      className="max-w-[180px] w-full object-contain rounded drop-shadow-md mb-6"
+                    />
+                  ) : (
+                    <p className="text-[13px] text-text-mut leading-[1.6] mb-6">
+                      Document indexed successfully. Vector embeddings generated for character tracking and conceptual mapping.
+                    </p>
+                  )}
+                </div>
+                <BookUploader
+                  bookType={bookType}
+                  setBookType={setBookType}
+                  fileFormat={fileFormat}
+                  setFileFormat={setFileFormat}
+                  onFileChange={handleFileChange}
+                  isUploading={isUploading}
+                  progressStage={progressStage}
+                  variant="compact"
+                />
+              </>
+            )}
           </aside>
 
-          {/* Right Panel - 60% Width */}
-          <section className="w-[60%] bg-background-dark flex flex-col overflow-hidden">
-            <header className="p-10 pb-4 border-b border-white/5">
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <h1 className="text-3xl font-bold text-white mb-1">EasyLearn Assistant</h1>
-                  <p className="text-[#A1A1AA] text-sm">Artificial Intelligence for Academic Excellence</p>
-                </div>
-                <div className="flex gap-2">
-                  <div className="px-3 py-1 bg-white/5 rounded-full border border-white/10 text-[10px] text-white/60 font-medium">Session ID: {book.id.slice(0, 8)}</div>
-                </div>
-              </div>
-            </header>
+          {/* Main Content Area */}
+          <section className="col-span-3 flex flex-col flex-1 overflow-hidden">
 
-            <div className="flex-1 overflow-hidden relative">
-              <div className="absolute inset-0 overflow-y-auto px-10 py-8 custom-scrollbar pb-32">
+            {(!book || isUploading || selectedFile) ? (
+              /* Empty State Content */
+              <div className="flex-1 flex flex-col md:items-center md:justify-center p-5 md:p-16 bg-muted md:bg-secondary overflow-y-auto">
+
+                {/* Mobile Only Source Document Text */}
+                <span className="md:hidden text-[11px] text-text-mut uppercase tracking-wider font-medium mb-4 block">Source Document</span>
+
+                <BookUploader
+                  bookType={bookType}
+                  setBookType={setBookType}
+                  fileFormat={fileFormat}
+                  setFileFormat={setFileFormat}
+                  onFileChange={handleFileChange}
+                  isUploading={isUploading}
+                  progressStage={progressStage}
+                  variant="full"
+                  selectedFile={selectedFile}
+                  onUploadStart={handleUploadStart}
+                  onCancel={() => setSelectedFile(null)}
+                />
+
+                {/* Mobile Only Current Library */}
+                <div className="md:hidden border-t border-border mt-8 pt-6 w-full">
+                  <span className="text-[11px] text-text-mut uppercase tracking-wider font-medium mb-4 block">Current Library</span>
+                  <span className="text-[14px] font-medium block mb-3">No active document</span>
+                  <p className="text-[13px] text-text-mut leading-[1.5]">
+                    Upload a document to begin analysis. Vector embeddings active for cross-reference.
+                  </p>
+                </div>
+
+                {/* Mobile Input Stub when no document active */}
+                <div className="md:hidden mt-auto pt-4 bg-background self-stretch mx-[-20px] px-5 border-t border-border">
+                  <div className="bg-secondary px-4 py-3 rounded-full text-muted-foreground text-[13px]">
+                    Tap to start analysis...
+                  </div>
+                </div>
+
+              </div>
+            ) : (
+              /* Active State Content (Chat View) */
+              <div className="flex-1 flex flex-col bg-background overflow-hidden relative">
                 <ChatWindow
                   messages={messages}
-                  onSendMessage={handleSendMessage}
                   isLoading={isLoading}
-                  toolName={activeTool}
-                  hideInput={true}
-                />
-              </div>
-            </div>
-
-            {/* Persistent Chat Input Bar at the very bottom of the right panel */}
-            <footer className="p-6 bg-background-dark/80 backdrop-blur-xl border-t border-white/5 mt-auto">
-              <div className="max-w-3xl mx-auto">
-                <ChatInput
+                  chatInput={chatInput}
+                  setChatInput={setChatInput}
                   onSendMessage={handleSendMessage}
-                  isLoading={isLoading}
-                  placeholder={`Ask anything about "${book.title}"...`}
-                  value={chatInput}
-                  onChange={setChatInput}
-                />
+                  messagesEndRef={messagesEndRef}
+                >
+                  <ToolSelector
+                    toolsList={toolsList}
+                    activeTool={activeTool}
+                    onToolClick={handleToolClick}
+                    isLoading={isLoading}
+                    book={book}
+                    variant="mobile_tabs"
+                  />
+                </ChatWindow>
               </div>
-            </footer>
+            )}
           </section>
-        </div>
-      )}
-    </main>
-  );
-}
+        </main>
+      </div>
 
-function ChatInput({ onSendMessage, isLoading, placeholder, value, onChange }: {
-  onSendMessage: (t: string) => void,
-  isLoading: boolean,
-  placeholder: string,
-  value: string,
-  onChange: (t: string) => void
-}) {
-  return (
-    <div className="flex gap-2">
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && !isLoading && value.trim() && (onSendMessage(value), onChange(""))}
-        placeholder={placeholder}
-        className="flex-1 h-14 bg-white/5 rounded-2xl px-6 text-sm text-white placeholder:text-white/20 outline-none border border-white/10 focus:border-[#1A73E8] focus:ring-4 focus:ring-[#1A73E8]/10 transition-all shadow-inner"
-        disabled={isLoading}
-      />
-      <Button
-        onClick={() => { onSendMessage(value); onChange(""); }}
-        disabled={isLoading || !value.trim()}
-        className="h-14 w-14 rounded-2xl bg-[#1A73E8] hover:bg-[#165CB8] shadow-lg shadow-[#1A73E8]/20 flex items-center justify-center p-0 shrink-0"
-      >
-        <Send className="h-6 w-6 text-white" />
-      </Button>
-    </div>
-  );
-}
-
-function Card({ children, className }: { children: React.ReactNode, className?: string }) {
-  return (
-    <div className={`bg-white rounded-xl border p-4 shadow-sm ${className}`}>
-      {children}
     </div>
   );
 }

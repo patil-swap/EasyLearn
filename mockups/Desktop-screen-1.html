@@ -1,0 +1,312 @@
+<html lang="en" vid="0"><head vid="1">
+    <meta charset="UTF-8" vid="2">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" vid="3">
+    <title vid="4">RAG // Document Intelligence</title>
+    <style vid="5">
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap');
+
+        :root {
+            --bg: #ffffff;
+            --text-main: #111111;
+            --text-mut: #666666;
+            --border: #e5e5e5;
+            --accent: #FF5E00;
+            --pill-bg: #f2f2f2;
+            --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-main);
+            font-family: var(--font);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            font-size: 13px;
+        }
+
+        .app-container {
+            max-width: 1440px;
+            margin: 0 auto;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            border-left: 1px solid var(--border);
+            border-right: 1px solid var(--border);
+        }
+
+        .header {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            padding: 32px 24px 48px 24px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo-mark {
+            grid-column: 1 / 2;
+            font-weight: 500;
+            font-size: 16px;
+            letter-spacing: -0.5px;
+        }
+
+        .header-title {
+            grid-column: 2 / 3;
+            font-size: 24px;
+            font-weight: 400;
+            line-height: 1.1;
+            letter-spacing: -0.5px;
+        }
+
+        .header-title .sub {
+            color: var(--text-mut);
+        }
+
+        .header-desc {
+            grid-column: 3 / 5;
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+
+        .toolbar {
+            padding: 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            opacity: 0.4;
+            pointer-events: none;
+        }
+
+        .section-label {
+            font-size: 13px;
+            color: var(--text-main);
+        }
+
+        .pills-container {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .pill {
+            background: var(--pill-bg);
+            border: none;
+            border-radius: 999px;
+            padding: 6px 14px;
+            font-size: 11px;
+            font-family: var(--font);
+            color: var(--text-main);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .pill .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #999;
+        }
+
+        .workspace {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            flex: 1;
+        }
+
+        .sidebar {
+            grid-column: 1 / 2;
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-block {
+            padding: 24px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .main-content {
+            grid-column: 2 / 5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 64px;
+            background: #fafafa;
+        }
+
+        .upload-container {
+            width: 100%;
+            max-width: 640px;
+            background: var(--bg);
+            border: 1px dashed var(--border);
+            padding: 80px 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .upload-container:hover {
+            border-color: var(--accent);
+        }
+
+        .text-date {
+            font-size: 11px;
+            color: var(--text-mut);
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .text-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-main);
+            margin: 0;
+        }
+
+        .text-body {
+            font-size: 13px;
+            color: var(--text-mut);
+            line-height: 1.6;
+            margin: 0;
+        }
+
+        .arrow-bullet {
+            font-size: 12px;
+            color: var(--text-main);
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .upload-icon {
+            margin-bottom: 24px;
+        }
+
+        .upload-specs {
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border);
+            width: 100%;
+            max-width: 200px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .spec-item {
+            text-align: center;
+        }
+
+        .input-wrapper {
+            padding: 24px;
+            border-top: 1px solid var(--border);
+            background: var(--bg);
+            position: sticky;
+            bottom: 0;
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        .input-field {
+            width: 100%;
+            border: none;
+            background: transparent;
+            font-family: var(--font);
+            font-size: 14px;
+            color: var(--text-main);
+            outline: none;
+            padding: 8px 0;
+        }
+    </style>
+</head>
+<body vid="6">
+
+<div class="app-container" vid="7">
+    <header class="header" vid="8">
+        <div class="logo-mark" vid="9">
+            <svg width="24" height="12" viewBox="0 0 24 12" fill="none" xmlns="http://www.w3.org/2000/svg" vid="10">
+                <path d="M0 0H4L8 8V0H12V12H8L4 4V12H0V0Z" fill="#111111" vid="11"></path>
+                <path d="M16 0L20 12H16L14 6L12 12H8L12 0H16Z" fill="#111111" vid="12"></path>
+            </svg>
+        </div>
+        <div class="header-title" vid="13">
+            <span class="sub" vid="14">Document</span><br vid="15">
+            Intelligence
+        </div>
+        <div class="header-desc text-body" vid="16">
+            <span class="arrow-bullet" vid="17">→</span>
+            <div vid="18">Our RAG framework is a fusion of lexical search and modern LLM tech, redefining deep reading with pinpoint extraction and analysis.</div>
+        </div>
+        <div style="grid-column: 4/5; text-align: right; padding-right: 24px;" vid="19">
+            <svg width="24" height="8" viewBox="0 0 24 8" fill="none" xmlns="http://www.w3.org/2000/svg" vid="20">
+                <rect width="24" height="1" fill="#111" vid="21"></rect>
+                <rect y="7" width="24" height="1" fill="#111" vid="22"></rect>
+            </svg>
+        </div>
+    </header>
+
+    <section class="toolbar" vid="23">
+        <div class="section-label" vid="24">Active Tool</div>
+        <div class="pills-container" vid="25">
+            <button class="pill" vid="26"><span class="dot" vid="27"></span>Summary</button>
+            <button class="pill" vid="28"><span class="dot" vid="29"></span>Question</button>
+            <button class="pill" vid="30"><span class="dot" vid="31"></span>Character Arc</button>
+            <button class="pill" vid="32"><span class="dot" vid="33"></span>Plot</button>
+            <button class="pill" vid="34"><span class="dot" vid="35"></span>Concept</button>
+            <button class="pill" vid="36"><span class="dot" vid="37"></span>Problem</button>
+        </div>
+    </section>
+
+    <main class="workspace" vid="38">
+        <aside class="sidebar" vid="39">
+            <div class="sidebar-block" vid="40">
+                <span class="text-date" vid="41">Status: Waiting</span>
+                <h2 class="text-title" vid="42">No active document</h2>
+            </div>
+            <div class="sidebar-block" style="flex: 1;" vid="43">
+                <span class="arrow-bullet" vid="44">→</span>
+                <p class="text-body" vid="45">
+                    Upload a document to begin analysis. Our system supports high-density text extraction for complex narrative and technical structures.
+                </p>
+            </div>
+        </aside>
+
+        <section class="main-content" vid="46">
+            <div class="upload-container" vid="47">
+                <div class="upload-icon" vid="48">
+                    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" vid="49">
+                        <path d="M20 10V30M10 20H30" stroke="#111" stroke-width="1" vid="50"></path>
+                        <rect x="0.5" y="0.5" width="39" height="39" stroke="#e5e5e5" vid="51"></rect>
+                    </svg>
+                </div>
+                <h2 class="text-title" style="font-size: 16px; margin-bottom: 8px;" vid="52">Drag and drop source file</h2>
+                <p class="text-body" vid="53">or click to browse your local directory</p>
+                
+                <div class="upload-specs" vid="54">
+                    <div class="spec-item" vid="55">
+                        <span class="text-date" vid="56">Format</span>
+                        <span class="text-title" vid="57">EPUB, PDF</span>
+                    </div>
+                    <div class="spec-item" vid="58">
+                        <span class="text-date" vid="59">Max Size</span>
+                        <span class="text-title" vid="60">50MB</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div class="input-wrapper" vid="61">
+        <input type="text" class="input-field" placeholder="Upload a document to enable queries..." disabled="" vid="62">
+    </div>
+</div>
+
+</body></html>

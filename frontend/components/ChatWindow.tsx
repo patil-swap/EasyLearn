@@ -1,177 +1,100 @@
-"use client";
-import { useState, useRef, useEffect } from "react";
-import { SourceViewer } from "./SourceViewer";
-import { SourceMetadata } from "@/lib/api";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Send, HelpCircle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-
-interface Message {
-  role: "user" | "assistant";
-  content: string;
-  sources?: SourceMetadata[];
-}
+import { Loader2 } from "lucide-react";
+import { Message } from "@/app/page";
 
 interface ChatWindowProps {
   messages: Message[];
-  onSendMessage: (text: string) => void;
   isLoading: boolean;
-  toolName: string;
-  hideInput?: boolean;
+  chatInput: string;
+  setChatInput: (val: string) => void;
+  onSendMessage: (text: string) => void;
+  messagesEndRef: React.RefObject<HTMLDivElement | null>;
+  children?: React.ReactNode;
 }
 
-const THINKING_MESSAGES = [
-  "Searching through the pages...",
-  "Reading between the lines...",
-  "Consulting the text...",
-  "Gathering context...",
-  "Piecing it together...",
-  "Cross-referencing chapters...",
-  "Analysing the content...",
-];
-
-function RotatingThinkingMessage() {
-  const [index, setIndex] = useState(0);
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setIndex((i) => (i + 1) % THINKING_MESSAGES.length);
-    }, 2500);
-    return () => clearInterval(interval);
-  }, []);
-  return <span className="transition-all duration-500">{THINKING_MESSAGES[index]}</span>;
-}
-
-export function ChatWindow({ messages, onSendMessage, isLoading, toolName, hideInput }: ChatWindowProps) {
-  const [input, setInput] = useState("");
-  const bottomRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isLoading]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (input.trim() && !isLoading) {
-      onSendMessage(input);
-      setInput("");
-    }
-  };
-
+export function ChatWindow({ messages, isLoading, chatInput, setChatInput, onSendMessage, messagesEndRef, children }: ChatWindowProps) {
   return (
-    <div className="flex flex-col w-full max-w-4xl mx-auto min-h-full">
-      <div className="flex-1">
-        <div className="space-y-8">
-          {messages.length === 0 && (
-            <div className="text-center py-20 animate-in fade-in duration-1000">
-              <div className="inline-block p-4 rounded-full bg-white/5 border border-white/10 mb-4">
-                <HelpCircle className="h-12 w-12 text-white/20" />
-              </div>
-              <h3 className="text-xl font-bold text-white mb-2">How can I help you today?</h3>
-              <p className="text-white/40 text-sm max-w-sm mx-auto">Select a tool on the left or type a question below to explore the contents of "{toolName}" Assistant.</p>
+    <>
+      <div className="flex-1 overflow-y-auto p-5 md:p-8 flex flex-col gap-6 md:gap-0">
+        {messages.length === 0 && (
+          <div className="md:hidden max-w-[90%] text-[14px] leading-[1.5] self-start text-text-main">
+            <div className="flex items-center gap-1.5 text-[11px] text-green-600 dark:text-green-400 font-semibold mb-2">
+              <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span> ANALYSIS READY
             </div>
-          )}
-          {messages.map((m, i) => {
-            if (m.role === "assistant" && !m.content && (!m.sources || m.sources.length === 0)) return null;
+            <p>Hello. I&apos;ve mapped the full context of the document. What aspect should we explore first?</p>
+          </div>
+        )}
+
+        {messages.map((m, i) => {
+          if (m.role === 'assistant') {
             return (
-              <div
-                key={i}
-                className={`flex ${m.role === "user" ? "justify-end" : "justify-start"} animate-in slide-in-from-bottom-2 duration-300`}
-              >
-                <div
-                  className={`max-w-[85%] rounded-3xl px-6 py-4 text-[15px] leading-relaxed shadow-lg ${m.role === "user"
-                    ? "bg-[#1A73E8] text-white shadow-[#1A73E8]/10"
-                    : "bg-white/5 text-white border border-white/10 backdrop-blur-sm"
-                    }`}
-                >
-                <div className="prose prose-invert prose-sm max-w-none">
-                  <ReactMarkdown
-                    components={{
-                      p: ({ node, children }) => (
-                        <p className="mb-4 last:mb-0">
-                          {Array.isArray(children) 
-                            ? children.map((child, idx) => {
-                                if (typeof child === 'string') {
-                                  return child.split(/(\[Chunk \d+\])/g).map((part, pIdx) => {
-                                    const match = part.match(/\[Chunk (\d+)\]/);
-                                    if (match) {
-                                      return (
-                                        <sup
-                                          key={`${idx}-${pIdx}`}
-                                          className="text-[10px] font-bold text-[#1A73E8] bg-[#1A73E8]/10 px-0.5 rounded ml-0.5 cursor-help"
-                                          title={`Source Chunk ${match[1]}`}
-                                        >
-                                          {match[1]}
-                                        </sup>
-                                      );
-                                    }
-                                    return part;
-                                  });
-                                }
-                                return child;
-                              })
-                            : children}
-                        </p>
-                      ),
-                      // Add similar handling for li if needed, or other block elements
-                      li: ({ children }) => (
-                        <li className="mb-1 last:mb-0">
-                          {Array.isArray(children)
-                            ? children.map((child, idx) => {
-                                if (typeof child === 'string') {
-                                  return child.split(/(\[Chunk \d+\])/g).map((part, pIdx) => {
-                                    const match = part.match(/\[Chunk (\d+)\]/);
-                                    if (match) {
-                                      return (
-                                        <sup
-                                          key={`${idx}-${pIdx}`}
-                                          className="text-[10px] font-bold text-[#1A73E8] bg-[#1A73E8]/10 px-0.5 rounded ml-0.5 cursor-help"
-                                          title={`Source Chunk ${match[1]}`}
-                                        >
-                                          {match[1]}
-                                        </sup>
-                                      );
-                                    }
-                                    return part;
-                                  });
-                                }
-                                return child;
-                              })
-                            : children}
-                        </li>
-                      ),
-                    }}
-                  >
-                    {m.content}
-                  </ReactMarkdown>
+              <div key={i} className="flex flex-col md:grid md:grid-cols-3 md:py-8 md:border-b md:border-border self-start md:self-auto w-full">
+                <div className="md:col-start-1 md:col-end-2 md:pr-6 hidden md:block">
+                  <span className="text-[11px] text-text-mut uppercase block mb-1">Response</span>
+                  <h3 className="text-[13px] font-medium m-0 text-text-main">Analysis Generated</h3>
                 </div>
-                  {m.sources && m.sources.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-white/10">
-                      <SourceViewer sources={m.sources} />
+                <div className="md:col-start-2 md:col-end-4 max-w-[90%] md:max-w-none text-text-main text-[14px] md:text-[13px] leading-[1.5] md:leading-[1.6]">
+                  <div className="md:hidden bg-pill-bg border border-border rounded-xl p-4 mt-3">
+                    <h4 className="text-[12px] font-semibold mb-2 text-accent uppercase tracking-wider">Analysis</h4>
+                    <div className="text-[14px] text-text-mut md:text-text-main leading-[1.5]">
+                      {m.content ? (
+                        <ReactMarkdown>{m.content}</ReactMarkdown>
+                      ) : isLoading && i === messages.length - 1 ? (
+                        <div className="flex items-center gap-2 text-text-mut"><Loader2 className="h-4 w-4 animate-spin" /></div>
+                      ) : null}
                     </div>
-                  )}
+                  </div>
+                  <div className="hidden md:block text-[13px] text-text-mut">
+                    {m.content ? (
+                      <ReactMarkdown>{m.content}</ReactMarkdown>
+                    ) : isLoading && i === messages.length - 1 ? (
+                      <div className="flex items-center gap-2 text-text-mut"><Loader2 className="h-4 w-4 animate-spin" /></div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
-            );
-          })}
-          {isLoading && (
-            <div className="flex justify-start">
-              <div className="bg-white/5 border border-white/10 rounded-2xl px-6 py-4 flex items-center gap-4">
-                <div className="flex gap-1">
-                  <span className="h-2 w-2 rounded-full bg-[#1A73E8] animate-bounce [animation-delay:0ms]" />
-                  <span className="h-2 w-2 rounded-full bg-[#1A73E8] animate-bounce [animation-delay:150ms]" />
-                  <span className="h-2 w-2 rounded-full bg-[#1A73E8] animate-bounce [animation-delay:300ms]" />
+            )
+          } else {
+            return (
+              <div key={i} className="flex flex-col md:grid md:grid-cols-3 md:py-8 md:border-b md:border-border self-end md:self-auto w-full mt-4 md:mt-0">
+                <div className="md:col-start-1 md:col-end-2 md:pr-6 hidden md:block">
+                  <span className="text-[11px] text-text-mut uppercase block mb-1">Query</span>
+                  <h3 className="text-[13px] font-medium m-0">Analysis Request</h3>
                 </div>
-                <span className="text-xs text-white/40 font-medium italic">
-                  <RotatingThinkingMessage />
-                </span>
+                <div className="md:col-start-2 md:col-end-4 max-w-[90%] md:max-w-none self-end md:self-auto bg-primary text-primary-foreground p-3 px-4 rounded-[18px_18px_2px_18px] md:bg-transparent md:text-text-main md:p-0 md:rounded-none md:text-[18px] text-[14px] leading-[1.5] md:leading-[1.4] tracking-[-0.3px]">
+                  {m.content}
+                </div>
               </div>
-            </div>
-          )}
-          <div ref={bottomRef} className="h-10" />
+            )
+          }
+        })}
+        <div ref={messagesEndRef} className="h-4" />
+      </div>
+
+      {children}
+
+      <div className="md:border-t md:border-border md:bg-background p-4 px-5 md:p-6 pb-8 md:pb-6 bg-background sticky bottom-0">
+        <div className="flex items-center gap-3 bg-secondary md:bg-transparent rounded-[24px] md:rounded-none p-2 md:p-0 pl-4 md:pl-0">
+          <input
+            type="text"
+            className="flex-1 border-none bg-transparent outline-none font-sans text-[14px] md:text-[14px] text-text-main placeholder:text-muted-foreground md:py-2 w-full"
+            placeholder="Ask a follow-up question or request another analysis..."
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && onSendMessage(chatInput)}
+            disabled={isLoading}
+          />
+          <button
+            className="md:hidden w-8 h-8 rounded-full bg-primary flex justify-center items-center shrink-0 cursor-pointer text-primary-foreground"
+            onClick={() => onSendMessage(chatInput)}
+            disabled={isLoading || !chatInput.trim()}
+          >
+            <svg viewBox="0 0 24 24" className="w-[14px] h-[14px] fill-current">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+            </svg>
+          </button>
         </div>
       </div>
-    </div>
+    </>
   );
 }

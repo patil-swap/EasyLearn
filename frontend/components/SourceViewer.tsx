@@ -32,7 +32,7 @@ export function SourceViewer({ sources }: SourceViewerProps) {
               <span>{source.chunk_id}</span>
               <span>{source.page ? `p. ${source.page}` : source.chapter}</span>
             </div>
-            <p className="italic">"{source.excerpt}"</p>
+            <p className="italic">&quot;{source.excerpt}&quot;</p>
           </div>
         ))}
       </CollapsibleContent>

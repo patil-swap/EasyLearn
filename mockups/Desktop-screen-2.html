@@ -1,0 +1,383 @@
+<html lang="en" vid="0"><head vid="1">
+    <meta charset="UTF-8" vid="2">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" vid="3">
+    <title vid="4">RAG // Book Analyzer</title>
+    <style vid="5">
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap');
+
+        :root {
+            --bg: #ffffff;
+            --text-main: #111111;
+            --text-mut: #666666;
+            --border: #e5e5e5;
+            --accent: #FF5E00;
+            --pill-bg: #f2f2f2;
+            --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            
+            --grid-col: 1fr;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-main);
+            font-family: var(--font);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            font-size: 13px;
+        }
+
+        
+        .app-container {
+            max-width: 1440px;
+            margin: 0 auto;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            border-left: 1px solid var(--border);
+            border-right: 1px solid var(--border);
+        }
+
+        
+        .header {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            padding: 32px 24px 48px 24px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo-mark {
+            grid-column: 1 / 2;
+            font-weight: 500;
+            font-size: 16px;
+            letter-spacing: -0.5px;
+        }
+
+        .header-title {
+            grid-column: 2 / 3;
+            font-size: 24px;
+            font-weight: 400;
+            line-height: 1.1;
+            letter-spacing: -0.5px;
+        }
+
+        .header-title .sub {
+            color: var(--text-mut);
+        }
+
+        .header-desc {
+            grid-column: 3 / 5;
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+
+        
+        .toolbar {
+            padding: 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .section-label {
+            font-size: 13px;
+            color: var(--text-main);
+        }
+
+        .pills-container {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .pill {
+            background: var(--pill-bg);
+            border: none;
+            border-radius: 999px;
+            padding: 6px 14px;
+            font-size: 11px;
+            font-family: var(--font);
+            color: var(--text-main);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .pill .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #999;
+        }
+
+        .pill.active {
+            background: var(--accent);
+        }
+
+        .pill.active .dot {
+            background: var(--text-main);
+        }
+
+        
+        .workspace {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            flex: 1;
+        }
+
+        
+        .doc-sidebar {
+            grid-column: 1 / 2;
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .doc-block {
+            padding: 24px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .doc-block:last-child {
+            border-bottom: none;
+        }
+
+        .upload-zone {
+            background: #f9f9f9;
+            padding: 48px 24px;
+            text-align: center;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            transition: background 0.2s;
+        }
+
+        .upload-zone:hover {
+            background: #f0f0f0;
+        }
+
+        
+        .interaction-area {
+            grid-column: 2 / 5;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .feed {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        
+        .feed-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            padding: 32px 24px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .feed-meta {
+            grid-column: 1 / 2;
+            padding-right: 24px;
+        }
+
+        .feed-content {
+            grid-column: 2 / 4;
+        }
+
+        .feed-content.user-query {
+            font-size: 18px;
+            color: var(--text-main);
+            letter-spacing: -0.3px;
+            line-height: 1.4;
+        }
+
+        
+        .input-wrapper {
+            padding: 24px;
+            border-top: 1px solid var(--border);
+            background: var(--bg);
+            position: sticky;
+            bottom: 0;
+        }
+
+        .input-field {
+            width: 100%;
+            border: none;
+            background: transparent;
+            font-family: var(--font);
+            font-size: 14px;
+            color: var(--text-main);
+            outline: none;
+            padding: 8px 0;
+        }
+
+        .input-field::placeholder {
+            color: #999;
+        }
+
+        
+        .text-date {
+            font-size: 11px;
+            color: var(--text-mut);
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .text-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-main);
+            margin: 0;
+        }
+
+        .text-body {
+            font-size: 13px;
+            color: var(--text-mut);
+            line-height: 1.6;
+            margin: 0;
+        }
+
+        .arrow-bullet {
+            font-size: 12px;
+            color: var(--text-main);
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        
+        .mb-24 { margin-bottom: 24px; }
+        .flex-between { display: flex; justify-content: space-between; align-items: flex-start; }
+
+    </style>
+</head>
+<body vid="6">
+
+<div class="app-container" vid="7">
+    
+    
+    <header class="header" vid="8">
+        <div class="logo-mark" vid="9">
+            <svg width="24" height="12" viewBox="0 0 24 12" fill="none" xmlns="http://www.w3.org/2000/svg" vid="10">
+                <path d="M0 0H4L8 8V0H12V12H8L4 4V12H0V0Z" fill="#111111" vid="11"></path>
+                <path d="M16 0L20 12H16L14 6L12 12H8L12 0H16Z" fill="#111111" vid="12"></path>
+            </svg>
+        </div>
+        <div class="header-title" vid="13">
+            <span class="sub" vid="14">Document</span><br vid="15">
+            Intelligence
+        </div>
+        <div class="header-desc text-body" vid="16">
+            <span class="arrow-bullet" vid="17">→</span>
+            <div vid="18">Our RAG framework is a fusion of lexical search and modern LLM tech, redefining deep reading with pinpoint extraction and analysis.</div>
+        </div>
+        <div style="grid-column: 4/5; text-align: right; padding-right: 24px;" vid="19">
+            <svg width="24" height="8" viewBox="0 0 24 8" fill="none" xmlns="http://www.w3.org/2000/svg" vid="20">
+                <rect width="24" height="1" fill="#111" vid="21"></rect>
+                <rect y="7" width="24" height="1" fill="#111" vid="22"></rect>
+            </svg>
+        </div>
+    </header>
+
+    
+    <section class="toolbar" vid="23">
+        <div class="section-label" vid="24">Active Tool</div>
+        <div class="pills-container" vid="25">
+            <button class="pill" vid="26"><span class="dot" vid="27"></span>Summary</button>
+            <button class="pill" vid="28"><span class="dot" vid="29"></span>Question</button>
+            <button class="pill active" vid="30"><span class="dot" vid="31"></span>Character Arc</button>
+            <button class="pill" vid="32"><span class="dot" vid="33"></span>Plot</button>
+            <button class="pill" vid="34"><span class="dot" vid="35"></span>Concept</button>
+            <button class="pill" vid="36"><span class="dot" vid="37"></span>Problem</button>
+        </div>
+    </section>
+
+    
+    <main class="workspace" vid="38">
+        
+        
+        <aside class="doc-sidebar" vid="39">
+            <div class="doc-block" vid="40">
+                <span class="text-date" vid="41">Status: Active</span>
+                <h2 class="text-title" vid="42">Dune_Frank_Herbert.epub</h2>
+            </div>
+            
+            <div class="doc-block" style="flex: 1;" vid="43">
+                <span class="arrow-bullet" vid="44">→</span>
+                <p class="text-body mb-24" vid="45">
+                    Document indexed successfully. 187,432 words analyzed. Vector embeddings generated for character tracking and conceptual mapping.
+                </p>
+            </div>
+
+            <div class="doc-block upload-zone" vid="46">
+                <span class="arrow-bullet" style="margin:0;" vid="47">→</span>
+                <span class="text-title" vid="48">Upload New Book</span>
+                <span class="text-date" vid="49">EPUB or PDF</span>
+            </div>
+        </aside>
+
+        
+        <section class="interaction-area" vid="50">
+            <div class="feed" vid="51">
+                
+                
+                <div class="feed-row" vid="52">
+                    <div class="feed-meta" vid="53">
+                        <span class="text-date" vid="54">Query / 14:02</span>
+                        <h3 class="text-title" vid="55">Character Arc Request</h3>
+                    </div>
+                    <div class="feed-content user-query" vid="56">
+                        Trace the character arc of Paul Atreides from his arrival on Arrakis to the final confrontation, focusing specifically on his acceptance of the Kwisatz Haderach mantle.
+                    </div>
+                </div>
+
+                
+                <div class="feed-row" vid="57">
+                    <div class="feed-meta" vid="58">
+                        <span class="text-date" vid="59">Response / 14:03</span>
+                        <h3 class="text-title" vid="60">Analysis Generated</h3>
+                    </div>
+                    <div class="feed-content" vid="61">
+                        <span class="arrow-bullet" vid="62">→</span>
+                        <p class="text-body mb-24" vid="63">
+                            <strong vid="64">Arrival and Denial</strong><br vid="65">
+                            Upon arriving on Arrakis, Paul is a product of his training—Bene Gesserit, Mentat, and Atreides. He experiences prescient visions but views them as a burden or an anomaly rather than destiny. His primary focus is on survival and political positioning following the Harkonnen betrayal.
+                        </p>
+                        
+                        <p class="text-body mb-24" vid="66">
+                            <strong vid="67">The Desert Awakening</strong><br vid="68">
+                            Fleeing into the deep desert with Jessica forces his exposure to raw spice. This acts as a catalyst, violently expanding his prescience. During this phase, he attempts to resist the "terrible purpose" (the jihad) he sees in his visions, trying to find a path that avoids galactic holy war while still avenging his father.
+                        </p>
+
+                        <p class="text-body" vid="69">
+                            <strong vid="70">Acceptance and the Water of Life</strong><br vid="71">
+                            To secure the absolute loyalty of the Fremen and to unlock the final barrier of his prescient vision, Paul chooses to undergo the spice agony, drinking the Water of Life. Surviving this confirms his status as the Kwisatz Haderach. He no longer fights the current of time but weaponizes it, accepting that to defeat the Emperor and the Guild, he must unleash the religious fervor he previously feared.
+                        </p>
+                    </div>
+                </div>
+
+            </div>
+
+            
+            <div class="input-wrapper" vid="72">
+                <input type="text" class="input-field" placeholder="Ask a follow-up question or request another analysis..." vid="73">
+            </div>
+        </section>
+
+    </main>
+</div>
+
+
+</body></html>

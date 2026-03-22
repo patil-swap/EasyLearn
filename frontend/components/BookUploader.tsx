@@ -1,221 +1,137 @@
 "use client";
 
-import { useState } from "react";
-import { api } from "@/lib/api";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, UploadCloud, Book, Cpu, Settings, FileText } from "lucide-react";
+import { useRef } from "react";
+import { Loader2 } from "lucide-react";
 
 interface BookUploaderProps {
-  onUploadComplete: (bookId: string, title: string, coverData?: string | null) => void;
+  bookType: string;
+  setBookType: (val: string) => void;
+  fileFormat: string;
+  setFileFormat: (val: string) => void;
+  onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  isUploading: boolean;
+  progressStage: string;
+  variant?: "full" | "compact";
+  selectedFile?: File | null;
+  onUploadStart?: () => void;
+  onCancel?: () => void;
 }
 
-export function BookUploader({ onUploadComplete }: BookUploaderProps) {
-  const [file, setFile] = useState<File | null>(null);
-  const [bookType, setBookType] = useState<string>("fiction");
-  const [fileFormat, setFileFormat] = useState<string>("pdf");
-  const [isUploading, setIsUploading] = useState(false);
-  const [error, setError] = useState<{ code: string; message: string } | null>(null);
-  const [progressStage, setProgressStage] = useState<string>("");
-
-  const formatSize = (bytes: number) => {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0] || null;
-    setError(null);
-    if (selectedFile && selectedFile.size > 50 * 1024 * 1024) {
-      setError({ code: "FILE_TOO_LARGE", message: "File too large. Maximum allowed size is 50MB." });
-      setFile(null);
-      return;
-    }
-    setFile(selectedFile);
-  };
-
-  const handleUpload = async () => {
-    if (!file) return;
-    setError(null);
-    setIsUploading(true);
-    setProgressStage("Uploading...");
-
-    try {
-      const uploadRes = await api.uploadBook(file, bookType, fileFormat);
-      const bookId = uploadRes.book_id;
-      const initialCover = uploadRes.cover_data;
-
-      let attempts = 0;
-      const pollStatus = async () => {
-        try {
-          const statusRes = await api.getUploadStatus(bookId);
-          if (statusRes.status === "completed") {
-            onUploadComplete(bookId, file!.name, statusRes.cover_data || initialCover);
-            setIsUploading(false);
-            return;
-          }
-          if (statusRes.status === "failed") {
-            setError({ code: statusRes.code || "ERR", message: statusRes.message || "Failed" });
-            setIsUploading(false);
-            return;
-          }
-          if (attempts < 2) setProgressStage("Validating...");
-          else if (attempts < 5) setProgressStage("Extracting...");
-          else setProgressStage("Vectorizing...");
-          attempts++;
-          if (attempts < 100) setTimeout(pollStatus, 1500);
-          else {
-            setError({ code: "TIMEOUT", message: "Timed out" });
-            setIsUploading(false);
-          }
-        } catch (e) {
-          setError({ code: "CONN", message: "Lost connection" });
-          setIsUploading(false);
-        }
-      };
-      pollStatus();
-    } catch (err: any) {
-      setError({ code: "FAIL", message: err.message });
-      setIsUploading(false);
-    }
-  };
+export function BookUploader({
+  bookType,
+  setBookType,
+  fileFormat,
+  setFileFormat,
+  onFileChange,
+  isUploading,
+  progressStage,
+  variant = "full",
+  selectedFile = null,
+  onUploadStart,
+  onCancel
+}: BookUploaderProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   return (
-    <div className="flex flex-col items-center justify-center max-w-2xl mx-auto text-center py-12 px-4 animate-in fade-in duration-700">
-      {/* Hero Illustration */}
-      <div className="relative mb-8">
-        <div className="bg-[#1A73E8]/10 p-6 rounded-full inline-block relative border border-[#1A73E8]/20 shadow-[0_0_50px_rgba(26,115,232,0.1)]">
-          <Book className="h-24 w-24 text-[#1A73E8]" />
-          <div className="absolute top-0 right-0 bg-[#FFFFFF] p-2 rounded-full shadow-lg border border-[#E8EAED] translate-x-1/4 -translate-y-1/4">
-            <Cpu className="h-8 w-8 text-[#1A73E8] animate-pulse" />
-          </div>
-          <div className="absolute bottom-0 left-0 bg-[#FFFFFF] p-1.5 rounded-full shadow-md border border-[#E8EAED] -translate-x-1/4 translate-y-1/4">
-            <Settings className="h-6 w-6 text-[#5F6368] animate-spin-[10s_linear_infinite]" />
-          </div>
+    <>
+      <input
+        type="file"
+        className="hidden"
+        accept=".pdf,.epub,.txt"
+        ref={fileInputRef}
+        onChange={onFileChange}
+      />
+
+      {variant === "compact" ? (
+        <div
+          className="p-12 text-center cursor-pointer flex flex-col items-center gap-3 bg-muted hover:opacity-80 transition-colors"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <span className="text-[12px] block mb-2">→</span>
+          <span className="text-[13px] font-medium border-b border-transparent hover:border-text-main pb-0.5 transition-colors">Upload New Book</span>
+          <span className="text-[11px] text-text-mut">EPUB or PDF</span>
         </div>
-      </div>
+      ) : (
+        <div
+          className={`w-full max-w-[640px] bg-card md:bg-card border ${selectedFile && !isUploading ? 'border-none p-0' : 'border-dashed border-border p-10 md:p-20'} flex flex-col items-center text-center transition-colors hover:border-accent rounded-[2px] md:rounded-none`}
+          onClick={() => { if (!selectedFile && !isUploading) fileInputRef.current?.click(); }}
+          style={{ cursor: (!selectedFile && !isUploading) ? 'pointer' : 'default' }}
+        >
+          {isUploading ? (
+            <div className="flex flex-col items-center">
+              <Loader2 className="h-8 w-8 text-text-mut animate-spin mb-4" />
+              <h2 className="text-[16px] font-medium mb-2">{progressStage}</h2>
+              <p className="text-[13px] text-text-mut">Please wait while we process the document...</p>
+            </div>
+          ) : selectedFile ? (
+            <div className="flex flex-col items-center w-full max-w-[340px]">
+              <div className="mb-4 w-12 h-12 bg-pill-bg border border-border rounded-full flex items-center justify-center text-text-main">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+              </div>
+              <h2 className="text-[14px] md:text-[16px] font-medium mb-1 truncate w-full px-4">{selectedFile.name}</h2>
+              <p className="text-[11px] md:text-[13px] text-text-mut mb-6">Confirm upload details to begin</p>
 
-      <h1 className="text-[36px] font-bold text-white mb-2 tracking-tight">
-        Welcome to EasyLearn
-      </h1>
+              <div className="w-full bg-background border border-border p-5 mb-8 rounded flex flex-col gap-5 text-left">
+                <div>
+                  <span className="text-[11px] text-text-mut block mb-1 uppercase tracking-wider">Book Type</span>
+                  <select
+                    className="w-full bg-transparent text-[13px] font-medium text-text-main border-b border-border outline-none pb-1"
+                    value={bookType}
+                    onChange={e => setBookType(e.target.value)}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <option value="fiction" className="bg-background text-text-main border-none">Fiction</option>
+                    <option value="educational" className="bg-background text-text-main border-none">Educational</option>
+                  </select>
+                </div>
+                <div>
+                  <span className="text-[11px] text-text-mut block mb-1 uppercase tracking-wider">Format</span>
+                  <select
+                    className="w-full bg-transparent text-[13px] font-medium text-text-main border-b border-border outline-none pb-1"
+                    value={fileFormat}
+                    onChange={e => setFileFormat(e.target.value)}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <option value="epub" className="bg-background text-text-main border-none">EPUB</option>
+                    <option value="pdf" className="bg-background text-text-main border-none">PDF</option>
+                    <option value="txt" className="bg-background text-text-main border-none">TXT</option>
+                  </select>
+                </div>
+              </div>
 
-      <p className="text-[#A1A1AA] text-sm mb-10 max-w-sm mx-auto leading-relaxed">
-        Your intelligent companion for deep book analysis and learning.
-      </p>
-
-      {error && (
-        <div className="mb-6 bg-[#EA4335]/15 border border-[#EA4335] text-white p-4 rounded-xl text-sm max-w-sm">
-          <p className="font-bold flex items-center justify-center gap-2 mb-1">
-            <div className="h-2 w-2 bg-[#EA4335] rounded-full animate-pulse" />
-            {error.code}
-          </p>
-          <p className="text-[#FDA4AF]">{error.message}</p>
+              <div className="flex gap-3 w-full">
+                <button
+                  className="flex-1 py-2.5 px-4 bg-pill-bg text-text-main border border-border font-medium text-[13px] rounded-full hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a] transition-colors"
+                  onClick={(e) => { e.stopPropagation(); onCancel?.(); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="flex-1 py-2.5 px-4 bg-text-main text-background font-medium text-[13px] rounded-full hover:opacity-80 transition-opacity"
+                  onClick={(e) => { e.stopPropagation(); onUploadStart?.(); }}
+                >
+                  Start Processing
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="mb-3 text-[12px] md:hidden">→</div>
+              <div className="hidden md:block mb-6 text-text-main">
+                <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+                  <path d="M20 10V30M10 20H30" stroke="currentColor" strokeWidth="1" />
+                  <rect x="0.5" y="0.5" width="39" height="39" className="stroke-border" />
+                </svg>
+              </div>
+              <h2 className="text-[14px] md:text-[16px] font-medium mb-1 md:mb-2">Upload New Book</h2>
+              <p className="text-[11px] md:text-[13px] text-text-mut mb-0 bg-transparent">Supports EPUB, PDF, TXT <span className="mx-1">|</span> Max size: 50MB</p>
+            </>
+          )}
         </div>
       )}
-
-      <div className="w-full max-w-sm space-y-4">
-        {!file ? (
-          <div className="flex flex-col items-center gap-6">
-            <Button
-              onClick={() => document.getElementById("file-input")?.click()}
-              className="bg-[#1A73E8] hover:bg-[#165CB8] text-white px-10 h-14 rounded-full font-bold shadow-xl shadow-[#1A73E8]/20 transition-all hover:scale-105 active:scale-95"
-            >
-              Upload Your Book
-            </Button>
-            <input
-              id="file-input"
-              type="file"
-              className="hidden"
-              accept=".pdf,.epub,.txt"
-              onChange={handleFileChange}
-              disabled={isUploading}
-            />
-          </div>
-        ) : (
-          <div className="bg-white rounded-2xl p-6 shadow-2xl border border-[#E8EAED] text-left animate-in zoom-in-95 duration-300">
-            <div className="flex items-center gap-4 mb-6">
-              <div className="p-3 bg-[#1A73E8]/10 rounded-xl">
-                <FileText className="h-6 w-6 text-[#1A73E8]" />
-              </div>
-              <div className="flex-1 overflow-hidden">
-                <p className="text-[#202124] font-bold truncate">{file.name}</p>
-                <p className="text-xs text-[#5F6368]">{formatSize(file.size)}</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 mb-6">
-              <div className="space-y-1.5">
-                <Label className="text-[10px] uppercase text-[#5F6368] font-bold">Type</Label>
-                <Select value={bookType} onValueChange={setBookType} disabled={isUploading}>
-                  <SelectTrigger className="h-9 text-xs border-[#E8EAED]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="fiction">Fiction</SelectItem>
-                    <SelectItem value="educational">Educational</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[10px] uppercase text-[#5F6368] font-bold">Format</Label>
-                <Select value={fileFormat} onValueChange={setFileFormat} disabled={isUploading}>
-                  <SelectTrigger className="h-9 text-xs border-[#E8EAED]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pdf">PDF</SelectItem>
-                    <SelectItem value="epub">EPUB</SelectItem>
-                    <SelectItem value="txt">TXT</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <Button
-              className={`w-full h-11 rounded-xl font-bold shadow-lg shadow-[#1A73E8]/20 transition-all ${isUploading
-                ? "bg-[#F1F3F4] text-[#5F6368]"
-                : "bg-[#1A73E8] hover:bg-[#165CB8] text-white"
-                }`}
-              onClick={handleUpload}
-              disabled={isUploading}
-            >
-              {isUploading ? (
-                <div className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="animate-pulse">{progressStage}</span>
-                </div>
-              ) : (
-                "Upload Your Book"
-              )}
-            </Button>
-
-            {!isUploading && (
-              <button
-                className="w-full text-center mt-4 text-xs text-[#5F6368] hover:text-[#202124] transition-colors"
-                onClick={() => setFile(null)}
-              >
-                Change file
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      <p className="mt-8 text-xs text-[#5F6368] font-medium">
-        Supported formats: PDF, EPUB, TXT · One book at a time
-      </p>
-    </div>
+    </>
   );
 }
