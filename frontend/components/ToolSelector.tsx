@@ -14,7 +14,7 @@ export function ToolSelector({ toolsList, activeTool, onToolClick, isLoading, bo
     return (
       <section className="p-5 md:p-6 border-b border-border flex flex-col gap-3">
         <div className="flex justify-between items-center w-full mb-2 md:mb-0">
-          <div className="text-[11px] md:text-[13px] text-text-mut md:text-text-main uppercase md:lowercase tracking-wider md:tracking-normal font-medium md:font-normal block">
+          <div className="text-[11px] md:text-[13px] text-text-mut md:text-text-main tracking-wider md:tracking-normal font-medium md:font-normal block">
             <span className="md:hidden">Analysis Tools</span>
             <span className="hidden md:block">Active Tool</span>
           </div>
@@ -50,8 +50,8 @@ export function ToolSelector({ toolsList, activeTool, onToolClick, isLoading, bo
   return (
     <div className="hidden md:flex p-6 border-b border-border flex-col gap-3">
       <div className="flex items-center justify-between w-full">
-         <div className="text-[13px] text-text-main">Active Tool</div>
-         <ThemeToggle />
+        <div className="text-[13px] text-text-main">Active Tool</div>
+        <ThemeToggle />
       </div>
       <div className="flex flex-wrap gap-2">
         {toolsList.map(t => (
