@@ -1,8 +1,9 @@
 import shutil
 import os
 
+RESET_ON_STARTUP = os.environ.get("RESET_ON_STARTUP", "false").lower() == "true"
 for path in ["uploads", os.environ.get("CHROMA_DB_PATH", "./db")]:
-    if os.path.exists(path):
+    if RESET_ON_STARTUP and os.path.exists(path):
         shutil.rmtree(path)
     os.makedirs(path, mode=0o755, exist_ok=True)
 

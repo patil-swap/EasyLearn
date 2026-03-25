@@ -123,7 +123,7 @@ class IngestionService:
             try:
                 clean_text = IngestionService.sanitize_text(text)
             except ValueError as e:
-                raise ValueError(f"Security rejection in EPUB chapter '{chapter_title}': {str(e)}")
+                raise ValueError(f"Security rejection in EPUB chapter '{item.get_name()}': {str(e)}")
 
             if len(clean_text) < 100:
                 continue

@@ -47,6 +47,13 @@ async def execute_query(request: Request, query_request: QueryRequest):
                 yield f"data: {json.dumps({'type': 'done'})}\n\n"
             return StreamingResponse(inapplicable_stream(), media_type="text/event-stream")
 
+        if query_request.tool_name in ("concept", "problem") and book_type == "fiction":
+            async def inapplicable_stream():
+                yield f"data: {json.dumps({'type': 'token', 'value': 'The Concept/Problem Solving feature is only available for educational books and is not applicable to fiction content.'})}\n\n"
+                yield f"data: {json.dumps({'type': 'sources', 'value': []})}\n\n"
+                yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            return StreamingResponse(inapplicable_stream(), media_type="text/event-stream")
+
     except Exception:
         logger.error("Query failed: Book not found book_id=%s", query_request.book_id)
         raise HTTPException(status_code=404, detail="Book not found. Please upload it first.")

@@ -70,6 +70,8 @@
   --input: #E8EAED;
   --ring: #1A73E8;
   --radius: 0.5rem;
+  --text-gray: #5F6368;
+  --text-charcoal: #202124;
 }
 
 .dark {

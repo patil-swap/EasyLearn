@@ -159,7 +159,7 @@ export function BookUploader({ onUploadComplete }: BookUploaderProps) {
               <div className="space-y-1.5">
                 <Label className="text-[10px] uppercase text-[#5F6368] font-bold">Type</Label>
                 <Select value={bookType} onValueChange={setBookType} disabled={isUploading}>
-                  <SelectTrigger className="h-9 text-xs border-[#E8EAED]">
+                  <SelectTrigger className="h-9 text-xs border-[#E8EAED] text-[#202124]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -171,7 +171,7 @@ export function BookUploader({ onUploadComplete }: BookUploaderProps) {
               <div className="space-y-1.5">
                 <Label className="text-[10px] uppercase text-[#5F6368] font-bold">Format</Label>
                 <Select value={fileFormat} onValueChange={setFileFormat} disabled={isUploading}>
-                  <SelectTrigger className="h-9 text-xs border-[#E8EAED]">
+                  <SelectTrigger className="h-9 text-xs border-[#E8EAED] text-[#202124]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

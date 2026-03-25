@@ -127,7 +127,7 @@ class LLMHandler:
             return "Unauthorized or suspicious request detected. Please ask only book-related questions."
 
         chain = self._get_chain(tool_name, difficulty)
-        response = await chain.ainvoke({...})
+        response = await chain.ainvoke({"context": context, "input": user_input, "chat_history": chat_history})
         return response.content
 
     async def astream_response(
@@ -143,5 +143,5 @@ class LLMHandler:
             return
 
         chain = self._get_chain(tool_name, difficulty)
-        async for chunk in chain.astream({...}):
+        async for chunk in chain.astream({"context": context, "input": user_input, "chat_history": chat_history}):
             yield chunk.content

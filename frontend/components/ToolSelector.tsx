@@ -60,7 +60,7 @@ export function ToolSelector({ activeTool, onToolChange, bookType, difficulty, o
               } ${(!isApplicable || isLoading) ? "opacity-30 grayscale cursor-not-allowed" : "cursor-pointer"}`}
             >
               <tool.icon className={`h-5 w-5 mb-2 ${isActive ? "text-white" : "text-[#1A73E8]"}`} />
-              <span className="text-[10px] font-bold uppercase tracking-tighter text-center leading-none">{tool.label}</span>
+              <span className={`text-[10px] font-bold uppercase tracking-tighter text-center leading-none ${isActive ? "text-white" : "text-[#202124]"}`}>{tool.label}</span>
             </button>
           );
         })}
