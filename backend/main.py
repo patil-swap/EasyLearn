@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from backend.api.v1 import endpoints_books, endpoints_query
+from backend.api.v1 import endpoints_books, endpoints_query, endpoints_feedback
 import logging
 import sys
 
@@ -41,8 +41,8 @@ async def security_and_size_middleware(request: Request, call_next):
         return JSONResponse(
             status_code=413,
             content={
-                "error": True, 
-                "code": "FILE_TOO_LARGE", 
+                "error": True,
+                "code": "FILE_TOO_LARGE",
                 "message": "File too large. Maximum allowed size is 50MB."
             }
         )
@@ -74,6 +74,7 @@ app.add_middleware(
 # Include routers
 app.include_router(endpoints_books.router, prefix="/api/v1/books", tags=["books"])
 app.include_router(endpoints_query.router, prefix="/api/v1/query", tags=["queries"])
+app.include_router(endpoints_feedback.router, prefix="/api/v1/feedback", tags=["feedback"])
 
 @app.get("/")
 async def root():

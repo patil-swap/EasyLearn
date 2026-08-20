@@ -19,6 +19,18 @@ export interface QueryResponse {
   sources: SourceMetadata[];
 }
 
+export interface FeedbackPayload {
+  book_id: string;
+  tool_name: string;
+  query_text: string | null;
+  response_excerpt: string;
+  rating: "up" | "down";
+  reasons?: string[] | null;
+  comment?: string | null;
+  session_id: string;
+  timestamp: string;
+}
+
 export const api = {
   uploadBook: async (file: File, bookType: string, fileFormat: string): Promise<BookUploadResponse> => {
     const formData = new FormData();
@@ -87,6 +99,22 @@ export const api = {
     if (!response.ok) {
       throw new Error("Failed to clear conversation memory");
     }
+  },
+
+  submitFeedback: async (payload: FeedbackPayload): Promise<{ status: string }> => {
+    const response = await fetch(`${API_BASE_URL}/feedback/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to submit feedback");
+    }
+
+    return response.json();
   },
 
   streamQuery: async (

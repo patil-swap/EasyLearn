@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
 import { SourceViewer } from "./SourceViewer";
+import { FeedbackControls } from "./FeedbackControls";
 import { SourceMetadata } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +13,8 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   sources?: SourceMetadata[];
+  toolName?: string;
+  queryText?: string;
 }
 
 interface ChatWindowProps {
@@ -20,6 +23,9 @@ interface ChatWindowProps {
   isLoading: boolean;
   toolName: string;
   hideInput?: boolean;
+  feedbackRatings: Record<number, "up" | "down">;
+  onFeedbackUp: (index: number) => void;
+  onFeedbackDown: (index: number) => void;
 }
 
 const THINKING_MESSAGES = [
@@ -147,7 +153,16 @@ function renderTextWithCitations(children: React.ReactNode, sources: SourceMetad
   return children;
 }
 
-export function ChatWindow({ messages, onSendMessage, isLoading, toolName, hideInput }: ChatWindowProps) {
+export function ChatWindow({
+  messages,
+  onSendMessage,
+  isLoading,
+  toolName,
+  hideInput,
+  feedbackRatings,
+  onFeedbackUp,
+  onFeedbackDown,
+}: ChatWindowProps) {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -178,6 +193,8 @@ export function ChatWindow({ messages, onSendMessage, isLoading, toolName, hideI
           )}
           {messages.map((m, i) => {
             if (m.role === "assistant" && !m.content && (!m.sources || m.sources.length === 0)) return null;
+            const isLast = i === messages.length - 1;
+
             return (
               <div
                 key={i}
@@ -207,10 +224,20 @@ export function ChatWindow({ messages, onSendMessage, isLoading, toolName, hideI
                       {m.content}
                     </ReactMarkdown>
                   </div>
+
                   {m.sources && m.sources.length > 0 && (
                     <div className="mt-4 pt-4 border-t border-white/10">
                       <SourceViewer sources={m.sources} />
                     </div>
+                  )}
+
+                  {m.role === "assistant" && m.content && (
+                    <FeedbackControls
+                      rating={feedbackRatings[i] ?? null}
+                      isLast={isLast}
+                      onUp={() => onFeedbackUp(i)}
+                      onDown={() => onFeedbackDown(i)}
+                    />
                   )}
                 </div>
               </div>

@@ -5,6 +5,7 @@ import { BookUploader } from "@/components/BookUploader";
 import { ToolSelector } from "@/components/ToolSelector";
 import { ChatWindow } from "@/components/ChatWindow";
 import { UpgradeModal } from "@/components/UpgradeModal";
+import { FeedbackModal } from "@/components/FeedbackModal";
 import { api, SourceMetadata } from "@/lib/api";
 import {
   Select,
@@ -21,6 +22,8 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   sources?: SourceMetadata[];
+  toolName?: string;
+  queryText?: string;
 }
 
 const isPaidUser = process.env.NEXT_PUBLIC_ENABLE_PAID_FEATURES === "true";
@@ -35,6 +38,15 @@ export default function Home() {
   const [essayScope, setEssayScope] = useState("entire_book");
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
+  const [feedbackRatings, setFeedbackRatings] = useState<Record<number, "up" | "down">>({});
+  const [feedbackModalIndex, setFeedbackModalIndex] = useState<number | null>(null);
+  const [sessionId] = useState(() => {
+    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+      return crypto.randomUUID();
+    }
+    return Math.random().toString(36).slice(2);
+  });
+
   const handleUploadComplete = (
     id: string,
     title: string,
@@ -46,6 +58,8 @@ export default function Home() {
       setBookType(uploadedBookType);
     }
     setMessages([]);
+    setFeedbackRatings({});
+    setFeedbackModalIndex(null);
   };
 
   const handleNewConversation = () => {
@@ -53,6 +67,8 @@ export default function Home() {
 
     setMessages([]);
     setChatInput("");
+    setFeedbackRatings({});
+    setFeedbackModalIndex(null);
 
     api.clearMemory(book.id).catch(() => {
       // Fail silently for UX
@@ -63,8 +79,11 @@ export default function Home() {
     if (!book) return;
     setIsLoading(true);
 
-    setMessages((prev) => [...prev, { role: "user", content: text }]);
-    setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: text, toolName: activeTool, queryText: text },
+      { role: "assistant", content: "", toolName: activeTool, queryText: text },
+    ]);
 
     await api.streamQuery(
       book.id,
@@ -129,6 +148,59 @@ export default function Home() {
       handleSendMessage("Summarize this book.");
       setChatInput("");
     }
+  };
+
+  const submitFeedback = (
+    index: number,
+    rating: "up" | "down",
+    reasons: string[] | null = null,
+    comment: string | null = null
+  ) => {
+    const msg = messages[index];
+    if (!msg) return;
+
+    api.submitFeedback({
+      book_id: book!.id,
+      tool_name: msg.toolName || activeTool,
+      query_text: msg.queryText || null,
+      response_excerpt: msg.content.slice(0, 300),
+      rating,
+      reasons,
+      comment,
+      session_id: sessionId,
+      timestamp: new Date().toISOString(),
+    }).catch(() => {
+      // Fire-and-forget: fail silently
+    });
+  };
+
+  const handleFeedbackUp = (index: number) => {
+    if (feedbackRatings[index]) return;
+
+    setFeedbackRatings((prev) => ({ ...prev, [index]: "up" }));
+    submitFeedback(index, "up");
+  };
+
+  const handleFeedbackDown = (index: number) => {
+    if (feedbackRatings[index]) return;
+
+    setFeedbackModalIndex(index);
+  };
+
+  const handleFeedbackModalSkip = () => {
+    if (feedbackModalIndex === null) return;
+
+    setFeedbackRatings((prev) => ({ ...prev, [feedbackModalIndex]: "down" }));
+    submitFeedback(feedbackModalIndex, "down");
+    setFeedbackModalIndex(null);
+  };
+
+  const handleFeedbackModalSubmit = (reasons: string[], comment: string) => {
+    if (feedbackModalIndex === null) return;
+
+    setFeedbackRatings((prev) => ({ ...prev, [feedbackModalIndex]: "down" }));
+    submitFeedback(feedbackModalIndex, "down", reasons, comment);
+    setFeedbackModalIndex(null);
   };
 
   return (
@@ -232,6 +304,9 @@ export default function Home() {
                   isLoading={isLoading}
                   toolName={activeTool}
                   hideInput={true}
+                  feedbackRatings={feedbackRatings}
+                  onFeedbackUp={handleFeedbackUp}
+                  onFeedbackDown={handleFeedbackDown}
                 />
               </div>
             </div>
@@ -252,6 +327,11 @@ export default function Home() {
       )}
 
       <UpgradeModal open={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
+      <FeedbackModal
+        open={feedbackModalIndex !== null}
+        onSubmit={handleFeedbackModalSubmit}
+        onSkip={handleFeedbackModalSkip}
+      />
     </main>
   );
 }
