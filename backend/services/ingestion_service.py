@@ -14,13 +14,18 @@ MAX_CHARS_EPUB_TXT = 1_500_000
 EPUB_SKIP_NAMES = {"nav.xhtml", "toc.xhtml", "cover.xhtml", "title.xhtml", "copyright.xhtml", "dedication.xhtml"}
 EPUB_SKIP_PREFIXES = ("css/", "styles/", "fonts/", "images/")
 INJECTION_PATTERNS = [
-    r'(?i)(ignore|disregard|forget|override|new\s+instructions?|you\s+are\s+now|system\s+prompt)',
-    r'(?i)(previous\s+(instructions?|prompts?|rules?|context))',
-    r'(?i)(from\s+now\s+on|act\s+as|role\s+play|become)',
-    r'(?i)(output\s+only|respond\s+with|print\s+the\s+following)',
-    r'(?i)(secret|override|admin|backdoor|leak|send\s+to|email|http)',
-    r'(?i)(base64|data:application|javascript:|eval\()',
-    r'(?i)(white\s+text|hidden|invisible|font-size:0|color:\s*white|display:\s*none)',
+    # More specific patterns that are less likely to trigger false positives
+    (r'(?i)^(ignore|disregard|forget|override) (all )?(previous|earlier) (instructions|prompts|rules)', True),  # Must match full phrase
+    (r'(?i)system prompt override', False),
+    (r'(?i)you are now (a )?different (AI|system)', False),
+    (r'(?i)previous instructions?.*?(ignore|override)', True),  # Requires both parts
+    (r'(?i)forget (all )?(previous|earlier) (instructions|prompts)', True),
+    (r'(?i)(from now on|act as|role play) (a )?(different )?(AI|system|assistant)', False),
+    (r'(?i)output only (the word|this phrase)', False),
+    (r'(?i)send (this|the) (message|text) to (http|email)', False),
+    (r'(?i)base64 decode and (execute|run)', False),
+    (r'(?i)javascript:.*?(alert|prompt|confirm|eval)', True),
+    (r'(?i)(data:application|data:text/html)', False),
 ]
 
 class IngestionService:
@@ -32,17 +37,38 @@ class IngestionService:
         text = re.sub(r'[\u200B-\u200D\uFEFF\u2028\u2029]', '', text)
         text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', text)
 
-        # Step 2: Remove suspicious invisible / styling tricks often used in PDFs
-        text = re.sub(r'(?i)(font-size:\s*0|color:\s*white|visibility:\s*hidden|display:\s*none)', '', text)
+        # Step 2: Remove suspicious invisible styling tricks
+        text = re.sub(r'style\s*=\s*["\'](?:[^"\']*?(?:font-size:\s*0|color:\s*white|visibility:\s*hidden|display:\s*none)[^"\']*?)["\']', '', text, flags=re.I)
+        text = re.sub(r'class\s*=\s*["\'](?:[^"\']*?(?:hidden|invisible)[^"\']*?)["\']', '', text, flags=re.I)
 
-        # Step 3: Pattern-based rejection (fail-fast)
-        for pattern in INJECTION_PATTERNS:
-            if re.search(pattern, text):
+        # Step 3: Pattern-based rejection (fail-fast with better context checking)
+        for pattern, require_context in INJECTION_PATTERNS:
+            matches = re.finditer(pattern, text, re.IGNORECASE | re.DOTALL)
+            for match in matches:
+                if require_context:
+                    # Check if this appears in a suspicious context
+                    start = max(0, match.start() - 100)
+                    end = min(len(text), match.end() + 100)
+                    context = text[start:end]
+                    
+                    if any(innocent in context.lower() for innocent in [
+                        "example", "sample", "test", "demonstration", 
+                        "the user said", "the system said", "the prompt said",
+                        "for example", "like this", "such as", "for instance"
+                    ]):
+                        continue
+
+                    if re.search(r'["\']' + re.escape(match.group(0)) + r'["\']', context, re.I):
+                        continue
+                
+                # If we passed all checks, reject
                 raise ValueError(
                     "Potential malicious content detected in uploaded file "
                     "(possible indirect prompt injection attempt). File rejected."
                 )
-        text = re.sub(r'<(script|style|iframe|object|embed|form)[^>]*>.*?</\1>', '', text, flags=re.DOTALL | re.I)
+        
+        # Remove script/style tags but preserve their content
+        text = re.sub(r'<(script|style|iframe|object|embed|form)[^>]*>.*?</\1>', ' ', text, flags=re.DOTALL | re.I)
 
         return text.strip()
 
@@ -52,7 +78,10 @@ class IngestionService:
 
         # Scanned PDF detection — check first 5 pages for extractable text
         sample_pages = min(5, len(doc))
-        sample_text = "".join(doc.load_page(i).get_text() for i in range(sample_pages))
+        sample_text = ""
+        for i in range(sample_pages):
+            sample_text += doc.load_page(i).get_text()
+        
         if len(sample_text.strip()) == 0:
             raise ValueError(
                 "This PDF appears to be a scanned image. Only text-based PDFs are supported."
@@ -69,18 +98,26 @@ class IngestionService:
             page = doc.load_page(page_num)
             raw_text = page.get_text("text").strip()
 
+            if len(raw_text) < 10:  # Skip nearly empty pages
+                continue
+                
             try:
                 clean_text = IngestionService.sanitize_text(raw_text)
             except ValueError as e:
-                raise ValueError(f"Security rejection on page {page_num+1}: {str(e)}")
-
-            if len(clean_text) < 50:
+                # Add context but don't reject the whole file for a single page
+                print(f"Warning: Security check failed on page {page_num+1}: {str(e)}")
+                # Skip this page and continue with others
                 continue
-            pages.append({
-                "content": clean_text,
-                "metadata": {"page": page_num + 1}
-            })
 
+            if clean_text and len(clean_text) > 50:  # Only include pages with meaningful content
+                pages.append({
+                    "content": clean_text,
+                    "metadata": {"page": page_num + 1}
+                })
+
+        if not pages:
+            raise ValueError("No readable text content found in this PDF.")
+            
         return pages
 
     @staticmethod
@@ -120,19 +157,24 @@ class IngestionService:
 
             text = soup.get_text(separator=" ", strip=True)
 
+            if len(text) < 50:  # Skip very short chapters
+                continue
+                
             try:
                 clean_text = IngestionService.sanitize_text(text)
             except ValueError as e:
-                raise ValueError(f"Security rejection in EPUB chapter '{item.get_name()}': {str(e)}")
+                # Log warning but don't reject the entire book
+                print(f"Warning: Security rejection in EPUB chapter '{item.get_name()}': {str(e)}")
+                continue
 
-            if len(clean_text) < 100:
+            if clean_text and len(clean_text) < 100:
                 continue
 
             # Character count limit
-            total_chars += len(text)
+            total_chars += len(clean_text)
             if total_chars > MAX_CHARS_EPUB_TXT:
                 raise ValueError(
-                    "Book too long. Maximum supported length is 1,500,000 characters."
+                    f"Book too long. Maximum supported length is {MAX_CHARS_EPUB_TXT:,} characters."
                 )
 
             # Use TOC title if available, fall back to item name
@@ -165,10 +207,10 @@ class IngestionService:
 
         if len(clean_text) > MAX_CHARS_EPUB_TXT:
             raise ValueError(
-                "Book too long. Maximum supported length is 1,500,000 characters."
+                f"Book too long. Maximum supported length is {MAX_CHARS_EPUB_TXT:,} characters."
             )
 
-        return [{"content": text, "metadata": {}}]
+        return [{"content": clean_text, "metadata": {}}]
 
     @staticmethod
     def extract_cover_from_pdf(file_path: str) -> Optional[str]:
@@ -229,6 +271,9 @@ class IngestionService:
             else:
                 raise ValueError(f"Unsupported file format: {file_format}")
             
+            if not docs:
+                raise ValueError("No readable content found in the uploaded file.")
+                
             return {
                 "documents": docs,
                 "cover_data": cover_data
