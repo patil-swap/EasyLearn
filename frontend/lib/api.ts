@@ -73,6 +73,20 @@ export const api = {
     return response.json();
   },
 
+  clearMemory: async (bookId: string): Promise<void> => {
+    const response = await fetch(`${API_BASE_URL}/query/clear-memory`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ book_id: bookId }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to clear conversation memory");
+    }
+  },
+
   streamQuery: async (
     bookId: string,
     toolName: string,

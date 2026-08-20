@@ -19,6 +19,12 @@ class RAGPipeline:
             self.memories[book_id] = InMemoryChatMessageHistory()
         return self.memories[book_id]
 
+    def clear_memory(self, book_id: str) -> None:
+        if book_id in self.memories:
+            self.memories[book_id].clear()
+            del self.memories[book_id]
+            logger.info("Conversation memory cleared for book_id=%s", book_id)
+
     async def run_query(self, book_id: str, tool_name: str, query_text: Optional[str] = None, difficulty: str = "standard"):
 
         DEFAULT_QUERIES = {
@@ -115,4 +121,3 @@ class RAGPipeline:
             logger.exception("RAG pipeline error for book_id=%s tool=%s", book_id, tool_name)
             yield {"type": "token", "value": "I am currently unable to access the knowledge base for this book due to a system error."}
             yield {"type": "sources", "value": []}
-

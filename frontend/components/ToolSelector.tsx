@@ -1,7 +1,6 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   FileText,
   HelpCircle,
@@ -11,13 +10,6 @@ import {
   Wrench,
   ArrowRight
 } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 interface ToolSelectorProps {
   activeTool: string;
   onToolChange: (tool: string) => void;
@@ -26,6 +18,16 @@ interface ToolSelectorProps {
   onDifficultyChange: (val: string) => void;
   variant?: "list" | "grid";
   isLoading?: boolean;
+}
+
+function getDisabledReason(tool: { id: string; label: string; fictionOnly?: boolean; educationalOnly?: boolean }, bookType: string): string {
+  if (tool.fictionOnly && bookType !== "fiction") {
+    return "This feature is designed for novels and fiction only.";
+  }
+  if (tool.educationalOnly && bookType !== "educational") {
+    return "This feature is designed for educational books only.";
+  }
+  return "";
 }
 
 export function ToolSelector({ activeTool, onToolChange, bookType, difficulty, onDifficultyChange, variant = "list", isLoading = false }: ToolSelectorProps) {
@@ -47,21 +49,29 @@ export function ToolSelector({ activeTool, onToolChange, bookType, difficulty, o
             (tool.educationalOnly && bookType !== "educational")
           );
           const isActive = activeTool === tool.id;
+          const disabledReason = getDisabledReason(tool, bookType);
 
           return (
-            <button
-              key={tool.id}
-              disabled={!isApplicable || isLoading}
-              onClick={() => onToolChange(tool.id)}
-              className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all duration-300 ${
-                isActive
+            <div key={tool.id} className="group relative w-full">
+              <button
+                disabled={!isApplicable || isLoading}
+                onClick={() => onToolChange(tool.id)}
+                className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all duration-300 w-full ${isActive
                   ? "bg-[#1A73E8] border-[#1A73E8] text-white shadow-lg shadow-[#1A73E8]/20 scale-[1.02]"
                   : "bg-white border-[--border] text-[--text-charcoal] hover:border-[#1A73E8]/30 hover:bg-[#F8F9FA]"
-              } ${(!isApplicable || isLoading) ? "opacity-30 grayscale cursor-not-allowed" : "cursor-pointer"}`}
-            >
-              <tool.icon className={`h-5 w-5 mb-2 ${isActive ? "text-white" : "text-[#1A73E8]"}`} />
-              <span className={`text-[10px] font-bold uppercase tracking-tighter text-center leading-none ${isActive ? "text-white" : "text-[#202124]"}`}>{tool.label}</span>
-            </button>
+                  } ${(!isApplicable || isLoading) ? "opacity-30 grayscale cursor-not-allowed" : "cursor-pointer"}`}
+              >
+                <tool.icon className={`h-5 w-5 mb-2 ${isActive ? "text-white" : "text-[#1A73E8]"}`} />
+                <span className={`text-[10px] font-bold uppercase tracking-tighter text-center leading-none ${isActive ? "text-white" : "text-[#202124]"}`}>{tool.label}</span>
+              </button>
+
+              {!isApplicable && disabledReason && !isLoading && (
+                <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-[240px] rounded-lg bg-[#202124] px-3 py-2 text-center text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-200 group-hover:opacity-100 z-10">
+                  {disabledReason}
+                  <span className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-[#202124]" />
+                </span>
+              )}
+            </div>
           );
         })}
       </div>
@@ -77,6 +87,7 @@ export function ToolSelector({ activeTool, onToolChange, bookType, difficulty, o
           (tool.educationalOnly && bookType !== "educational")
         );
         const isActive = activeTool === tool.id;
+        const disabledReason = getDisabledReason(tool, bookType);
 
         return (
           <div
@@ -112,6 +123,7 @@ export function ToolSelector({ activeTool, onToolChange, bookType, difficulty, o
                   variant="outline"
                   disabled={!isApplicable}
                   onClick={() => onToolChange(tool.id)}
+                  title={!isApplicable ? disabledReason : undefined}
                   className={`h-11 px-6 rounded-xl font-bold transition-all ${isActive
                     ? "border-[#1A73E8] text-[#1A73E8] bg-[#1A73E8]/10 hover:bg-[#1A73E8]/20"
                     : "border-white/20 text-white bg-transparent hover:bg-white/10 hover:border-white"

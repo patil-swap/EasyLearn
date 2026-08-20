@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Book, FileText, Send, Loader2 } from "lucide-react";
+import { Book, FileText, Send, Loader2, RotateCcw } from "lucide-react";
 
 interface Message {
   role: "user" | "assistant";
@@ -33,6 +33,18 @@ export default function Home() {
   const handleUploadComplete = (id: string, title: string, cover_data?: string | null) => {
     setBook({ id, title, cover_data });
     setMessages([]); // Clear previous chat
+  };
+
+  const handleNewConversation = () => {
+    if (!book) return;
+
+    setMessages([]);
+    setChatInput("");
+
+    // Fire-and-forget: clear backend in-memory history without disrupting UI.
+    api.clearMemory(book.id).catch(() => {
+      // Fail silently for UX. Memory will still be cleared for this book on next query if bug is fixed.
+    });
   };
 
   const handleSendMessage = async (text: string) => {
@@ -182,8 +194,18 @@ export default function Home() {
                   <h1 className="text-3xl font-bold text-white mb-1">EasyLearn Assistant</h1>
                   <p className="text-[#A1A1AA] text-sm">Artificial Intelligence for Academic Excellence</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
                   <div className="px-3 py-1 bg-white/5 rounded-full border border-white/10 text-[10px] text-white/60 font-medium">Session ID: {book.id.slice(0, 8)}</div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleNewConversation}
+                    disabled={isLoading}
+                    className="h-8 gap-1.5 border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    New Conversation
+                  </Button>
                 </div>
               </div>
             </header>
