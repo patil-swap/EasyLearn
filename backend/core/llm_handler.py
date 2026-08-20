@@ -77,6 +77,21 @@ class LLMHandler:
                 "Provide clear, step-by-step guidance based EXCLUSIVELY on the book's methodology.\n"
                 "Cite sources [Chunk X] after each important step or formula.\n"
             ),
+            "essay_outline": SECURITY_PREAMBLE + (
+                "You are a high-school literature essay outline and thesis generator.\n\n"
+                "Generate a literature essay outline for a fiction/novel book based ONLY on the retrieved book content.\n\n"
+                "OUTPUT REQUIREMENTS:\n"
+                "- 1 arguable thesis statement, 1-2 sentences.\n"
+                "- 3-5 body paragraph outline points.\n"
+                "- 2-3 exact quotes per body paragraph.\n"
+                "- Every quote must be verbatim from the retrieved book content.\n"
+                "- Each quote must be 40 words or fewer.\n"
+                "- Each quote and factual claim must include an inline citation in format [p. Y – Chapter Z] or [Chunk X].\n"
+                "- Total outline length: 400-700 words.\n"
+                "- Never invent quotes, page numbers, chapter names, or claims.\n"
+                "- If there is not enough context: respond exactly "
+                "'Not enough context in the book for this topic. Please try a different chapter or question.'\n"
+            ),
             # Default fallback
             "default": SECURITY_PREAMBLE + (
                 "Answer questions using only the provided book content. Cite sources.\n"

@@ -8,8 +8,11 @@ import {
   Layout,
   Lightbulb,
   Wrench,
-  ArrowRight
+  ArrowRight,
+  PenLine,
+  Lock
 } from "lucide-react";
+
 interface ToolSelectorProps {
   activeTool: string;
   onToolChange: (tool: string) => void;
@@ -18,26 +21,52 @@ interface ToolSelectorProps {
   onDifficultyChange: (val: string) => void;
   variant?: "list" | "grid";
   isLoading?: boolean;
+  isPaidUser?: boolean;
+  onLockedPaidToolClick?: (toolId: string) => void;
 }
 
-function getDisabledReason(tool: { id: string; label: string; fictionOnly?: boolean; educationalOnly?: boolean }, bookType: string): string {
+type ToolConfig = {
+  id: string;
+  label: string;
+  icon: any;
+  actionLabel: string;
+  fictionOnly?: boolean;
+  educationalOnly?: boolean;
+  paidOnly?: boolean;
+};
+
+function getDisabledReason(tool: ToolConfig, bookType: string, isPaidUser: boolean = false): string {
   if (tool.fictionOnly && bookType !== "fiction") {
     return "This feature is designed for novels and fiction only.";
   }
   if (tool.educationalOnly && bookType !== "educational") {
     return "This feature is designed for educational books only.";
   }
+  if (tool.paidOnly && !isPaidUser) {
+    return "Coming soon for paid users. See more.";
+  }
   return "";
 }
 
-export function ToolSelector({ activeTool, onToolChange, bookType, difficulty, onDifficultyChange, variant = "list", isLoading = false }: ToolSelectorProps) {
-  const tools = [
+export function ToolSelector({
+  activeTool,
+  onToolChange,
+  bookType,
+  difficulty,
+  onDifficultyChange,
+  variant = "list",
+  isLoading = false,
+  isPaidUser = false,
+  onLockedPaidToolClick,
+}: ToolSelectorProps) {
+  const tools: ToolConfig[] = [
     { id: "summary", label: "Summary", icon: FileText, actionLabel: "Summarize" },
     { id: "question", label: "QA", icon: HelpCircle, actionLabel: "Ask" },
     { id: "character_arc", label: "Characters", icon: Users, fictionOnly: true, actionLabel: "Analyze" },
     { id: "plot", label: "Plot", icon: Layout, actionLabel: "Explain" },
     { id: "concept", label: "Concepts", icon: Lightbulb, educationalOnly: true, actionLabel: "Teach" },
     { id: "problem", label: "Problems", icon: Wrench, educationalOnly: true, actionLabel: "Solve" },
+    { id: "essay_outline", label: "Essay", icon: PenLine, fictionOnly: true, paidOnly: true, actionLabel: "Generate" },
   ];
 
   if (variant === "grid") {
@@ -48,24 +77,39 @@ export function ToolSelector({ activeTool, onToolChange, bookType, difficulty, o
             (tool.fictionOnly && bookType !== "fiction") ||
             (tool.educationalOnly && bookType !== "educational")
           );
+          const isLockedPaid = tool.paidOnly && !isPaidUser && isApplicable;
           const isActive = activeTool === tool.id;
-          const disabledReason = getDisabledReason(tool, bookType);
+          const disabledReason = getDisabledReason(tool, bookType, isPaidUser);
+          const isDisabled = !isApplicable || isLoading;
+          const isDimmed = isDisabled || isLockedPaid;
+
+          const handleClick = () => {
+            if (isDisabled) return;
+            if (isLockedPaid) {
+              onLockedPaidToolClick?.(tool.id);
+              return;
+            }
+            onToolChange(tool.id);
+          };
 
           return (
             <div key={tool.id} className="group relative w-full">
               <button
-                disabled={!isApplicable || isLoading}
-                onClick={() => onToolChange(tool.id)}
+                disabled={isDisabled}
+                onClick={handleClick}
                 className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all duration-300 w-full ${isActive
                   ? "bg-[#1A73E8] border-[#1A73E8] text-white shadow-lg shadow-[#1A73E8]/20 scale-[1.02]"
                   : "bg-white border-[--border] text-[--text-charcoal] hover:border-[#1A73E8]/30 hover:bg-[#F8F9FA]"
-                  } ${(!isApplicable || isLoading) ? "opacity-30 grayscale cursor-not-allowed" : "cursor-pointer"}`}
+                  } ${isDimmed ? "opacity-30 grayscale cursor-not-allowed" : "cursor-pointer"}`}
               >
                 <tool.icon className={`h-5 w-5 mb-2 ${isActive ? "text-white" : "text-[#1A73E8]"}`} />
-                <span className={`text-[10px] font-bold uppercase tracking-tighter text-center leading-none ${isActive ? "text-white" : "text-[#202124]"}`}>{tool.label}</span>
+                <span className={`text-[10px] font-bold uppercase tracking-tighter text-center leading-none ${isActive ? "text-white" : "text-[#202124]"}`}>
+                  {isLockedPaid && <Lock className="inline h-3 w-3 mr-0.5 -mt-0.5" />}
+                  {tool.label}
+                </span>
               </button>
 
-              {!isApplicable && disabledReason && !isLoading && (
+              {isDimmed && disabledReason && !isLoading && (
                 <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-[240px] rounded-lg bg-[#202124] px-3 py-2 text-center text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-200 group-hover:opacity-100 z-10">
                   {disabledReason}
                   <span className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-[#202124]" />
@@ -78,7 +122,7 @@ export function ToolSelector({ activeTool, onToolChange, bookType, difficulty, o
     );
   }
 
-  // Original list variant (for reference or other pages)
+  // Original list variant
   return (
     <div className="space-y-4 max-w-4xl">
       {tools.map((tool, index) => {
@@ -86,8 +130,10 @@ export function ToolSelector({ activeTool, onToolChange, bookType, difficulty, o
           (tool.fictionOnly && bookType !== "fiction") ||
           (tool.educationalOnly && bookType !== "educational")
         );
+        const isLockedPaid = tool.paidOnly && !isPaidUser && isApplicable;
         const isActive = activeTool === tool.id;
-        const disabledReason = getDisabledReason(tool, bookType);
+        const disabledReason = getDisabledReason(tool, bookType, isPaidUser);
+        const isDisabled = !isApplicable || isLockedPaid;
 
         return (
           <div
@@ -95,7 +141,7 @@ export function ToolSelector({ activeTool, onToolChange, bookType, difficulty, o
             className={`group relative bg-white/5 backdrop-blur-sm rounded-2xl p-6 border transition-all duration-300 ${isActive
               ? "border-[#1A73E8] shadow-[0_0_25px_rgba(26,115,232,0.15)] ring-1 ring-[#1A73E8]"
               : "border-white/10 hover:border-white/20 shadow-sm"
-              } ${!isApplicable ? "opacity-30 grayscale-[0.8]" : ""}`}
+              } ${isDisabled ? "opacity-30 grayscale-[0.8]" : ""}`}
           >
             <div className="flex items-start gap-6">
               <div className="text-sm font-black text-white/20 mt-1 w-4">
@@ -108,22 +154,27 @@ export function ToolSelector({ activeTool, onToolChange, bookType, difficulty, o
                     <tool.icon className="h-5 w-5" />
                   </div>
                   <h3 className="text-lg font-bold text-white">{tool.label}</h3>
+                  {isLockedPaid && <Lock className="h-4 w-4 text-white/40" />}
                   {!isApplicable && (
                     <span className="text-[10px] bg-white/5 text-white/40 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
                       Not Applicable
                     </span>
                   )}
                 </div>
-                {/* Description removed as per new tools array structure */}
-                {/* Input and Difficulty Select removed as per new tools array structure */}
               </div>
 
               <div className="flex flex-col items-end gap-2 shrink-0">
                 <Button
                   variant="outline"
                   disabled={!isApplicable}
-                  onClick={() => onToolChange(tool.id)}
-                  title={!isApplicable ? disabledReason : undefined}
+                  onClick={() => {
+                    if (isLockedPaid) {
+                      onLockedPaidToolClick?.(tool.id);
+                    } else {
+                      onToolChange(tool.id);
+                    }
+                  }}
+                  title={disabledReason || undefined}
                   className={`h-11 px-6 rounded-xl font-bold transition-all ${isActive
                     ? "border-[#1A73E8] text-[#1A73E8] bg-[#1A73E8]/10 hover:bg-[#1A73E8]/20"
                     : "border-white/20 text-white bg-transparent hover:bg-white/10 hover:border-white"

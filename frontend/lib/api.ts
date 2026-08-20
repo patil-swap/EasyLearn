@@ -51,7 +51,8 @@ export const api = {
     book_id: string,
     tool_name: string,
     query_text?: string,
-    difficulty_level: string = "standard"
+    difficulty_level: string = "standard",
+    scope?: string
   ): Promise<QueryResponse> => {
     const response = await fetch(`${API_BASE_URL}/query/`, {
       method: "POST",
@@ -63,6 +64,7 @@ export const api = {
         tool_name,
         query_text,
         difficulty_level,
+        scope,
       }),
     });
 
@@ -95,7 +97,8 @@ export const api = {
     onToken: (token: string) => void,
     onSources: (sources: SourceMetadata[]) => void,
     onDone: () => void,
-    onError: (error: string) => void
+    onError: (error: string) => void,
+    scope: string = "entire_book"
   ): Promise<void> => {
     const res = await fetch(`${API_BASE_URL}/query/`, {
       method: "POST",
@@ -105,6 +108,7 @@ export const api = {
         tool_name: toolName,
         query_text: queryText,
         difficulty_level: difficultyLevel,
+        scope,
       }),
     });
 

@@ -16,13 +16,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, UploadCloud, Book, Cpu, Settings, FileText } from "lucide-react";
 
 interface BookUploaderProps {
-  onUploadComplete: (bookId: string, title: string, coverData?: string | null) => void;
+  onUploadComplete: (
+    bookId: string,
+    title: string,
+    coverData?: string | null,
+    bookType?: string
+  ) => void;
 }
 
 export function BookUploader({ onUploadComplete }: BookUploaderProps) {
   const [file, setFile] = useState<File | null>(null);
-  const [bookType, setBookType] = useState<string>("fiction");
-  const [fileFormat, setFileFormat] = useState<string>("pdf");
+  const [bookType, setBookType] = useState<string>("");
+  const [fileFormat, setFileFormat] = useState<string>("");
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<{ code: string; message: string } | null>(null);
   const [progressStage, setProgressStage] = useState<string>("");
@@ -48,6 +53,17 @@ export function BookUploader({ onUploadComplete }: BookUploaderProps) {
 
   const handleUpload = async () => {
     if (!file) return;
+
+    if (!bookType) {
+      setError({ code: "SELECTION REQUIRED", message: "Please select the book type." });
+      return;
+    }
+
+    if (!fileFormat) {
+      setError({ code: "SELECTION REQUIRED", message: "Please select the file format." });
+      return;
+    }
+
     setError(null);
     setIsUploading(true);
     setProgressStage("Uploading...");
@@ -62,7 +78,12 @@ export function BookUploader({ onUploadComplete }: BookUploaderProps) {
         try {
           const statusRes = await api.getUploadStatus(bookId);
           if (statusRes.status === "completed") {
-            onUploadComplete(bookId, file!.name, statusRes.cover_data || initialCover);
+            onUploadComplete(
+              bookId,
+              file!.name,
+              statusRes.cover_data || initialCover,
+              bookType
+            );
             setIsUploading(false);
             return;
           }
@@ -158,11 +179,18 @@ export function BookUploader({ onUploadComplete }: BookUploaderProps) {
             <div className="grid grid-cols-2 gap-3 mb-6">
               <div className="space-y-1.5">
                 <Label className="text-[10px] uppercase text-[#5F6368] font-bold">Type</Label>
-                <Select value={bookType} onValueChange={setBookType} disabled={isUploading}>
+                <Select
+                  value={bookType || "__placeholder__"}
+                  onValueChange={(val) => setBookType(val === "__placeholder__" ? "" : val)}
+                  disabled={isUploading}
+                >
                   <SelectTrigger className="h-9 text-xs border-[#E8EAED] text-[#202124]">
-                    <SelectValue />
+                    <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="__placeholder__" disabled>
+                      Select type
+                    </SelectItem>
                     <SelectItem value="fiction">Fiction</SelectItem>
                     <SelectItem value="educational">Educational</SelectItem>
                   </SelectContent>
@@ -170,11 +198,18 @@ export function BookUploader({ onUploadComplete }: BookUploaderProps) {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-[10px] uppercase text-[#5F6368] font-bold">Format</Label>
-                <Select value={fileFormat} onValueChange={setFileFormat} disabled={isUploading}>
+                <Select
+                  value={fileFormat || "__placeholder__"}
+                  onValueChange={(val) => setFileFormat(val === "__placeholder__" ? "" : val)}
+                  disabled={isUploading}
+                >
                   <SelectTrigger className="h-9 text-xs border-[#E8EAED] text-[#202124]">
-                    <SelectValue />
+                    <SelectValue placeholder="Select format" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="__placeholder__" disabled>
+                      Select format
+                    </SelectItem>
                     <SelectItem value="pdf">PDF</SelectItem>
                     <SelectItem value="epub">EPUB</SelectItem>
                     <SelectItem value="txt">TXT</SelectItem>

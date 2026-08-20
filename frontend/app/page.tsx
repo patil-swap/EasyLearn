@@ -4,6 +4,7 @@ import { useState } from "react";
 import { BookUploader } from "@/components/BookUploader";
 import { ToolSelector } from "@/components/ToolSelector";
 import { ChatWindow } from "@/components/ChatWindow";
+import { UpgradeModal } from "@/components/UpgradeModal";
 import { api, SourceMetadata } from "@/lib/api";
 import {
   Select,
@@ -22,6 +23,8 @@ interface Message {
   sources?: SourceMetadata[];
 }
 
+const isPaidUser = process.env.NEXT_PUBLIC_ENABLE_PAID_FEATURES === "true";
+
 export default function Home() {
   const [book, setBook] = useState<{ id: string; title: string; cover_data?: string | null } | null>(null);
   const [bookType, setBookType] = useState<string>("fiction");
@@ -29,10 +32,20 @@ export default function Home() {
   const [difficulty, setDifficulty] = useState("standard");
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [essayScope, setEssayScope] = useState("entire_book");
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
-  const handleUploadComplete = (id: string, title: string, cover_data?: string | null) => {
+  const handleUploadComplete = (
+    id: string,
+    title: string,
+    cover_data?: string | null,
+    uploadedBookType?: string
+  ) => {
     setBook({ id, title, cover_data });
-    setMessages([]); // Clear previous chat
+    if (uploadedBookType === "fiction" || uploadedBookType === "educational") {
+      setBookType(uploadedBookType);
+    }
+    setMessages([]);
   };
 
   const handleNewConversation = () => {
@@ -41,9 +54,8 @@ export default function Home() {
     setMessages([]);
     setChatInput("");
 
-    // Fire-and-forget: clear backend in-memory history without disrupting UI.
     api.clearMemory(book.id).catch(() => {
-      // Fail silently for UX. Memory will still be cleared for this book on next query if bug is fixed.
+      // Fail silently for UX
     });
   };
 
@@ -90,7 +102,8 @@ export default function Home() {
           return updated;
         });
         setIsLoading(false);
-      }
+      },
+      essayScope
     );
   };
 
@@ -99,20 +112,19 @@ export default function Home() {
   const handleToolChange = (toolId: string) => {
     setActiveTool(toolId);
 
-    // Find tool info (simplified here, but could be a data map)
     const toolPrefixes: Record<string, string> = {
       summary: "Summarize this book.",
       character_arc: "Analyze the character arc of: ",
       plot: "Explain the plot points regarding: ",
       concept: "Explain the concept of: ",
       problem: "How can I solve the problem of: ",
+      essay_outline: "Generate an essay outline on: ",
       question: ""
     };
 
     const prefix = toolPrefixes[toolId] || "";
     setChatInput(prefix);
 
-    // Auto-send if it's a direct command like summary
     if (toolId === "summary") {
       handleSendMessage("Summarize this book.");
       setChatInput("");
@@ -182,6 +194,8 @@ export default function Home() {
                 onDifficultyChange={setDifficulty}
                 variant="grid"
                 isLoading={isLoading}
+                isPaidUser={isPaidUser}
+                onLockedPaidToolClick={() => setShowUpgradeModal(true)}
               />
             </div>
           </aside>
@@ -222,7 +236,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Persistent Chat Input Bar at the very bottom of the right panel */}
             <footer className="p-6 bg-background-dark/80 backdrop-blur-xl border-t border-white/5 mt-auto">
               <div className="max-w-3xl mx-auto">
                 <ChatInput
@@ -237,6 +250,8 @@ export default function Home() {
           </section>
         </div>
       )}
+
+      <UpgradeModal open={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
     </main>
   );
 }

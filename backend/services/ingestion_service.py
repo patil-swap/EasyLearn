@@ -132,8 +132,13 @@ class IngestionService:
                     )
 
         elif format_lower == "txt":
-            with open(file_path, "r", encoding="utf-8") as f:
-                text = f.read()
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    text = f.read()
+            except UnicodeDecodeError:
+                raise ValueError(
+                    "The uploaded file is not a valid UTF-8 text file. Please check the selected format."
+                )
 
             if len(text) > MAX_CHARS_EPUB_TXT:
                 raise ValueError(
@@ -266,8 +271,13 @@ class IngestionService:
 
     @staticmethod
     def extract_text_from_txt(file_path: str) -> List[Dict[str, Any]]:
-        with open(file_path, "r", encoding="utf-8") as f:
-            text = f.read()
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                text = f.read()
+        except UnicodeDecodeError:
+            raise ValueError(
+                "The uploaded file is not a valid UTF-8 text file. Please check the selected format."
+            )
 
         try:
             clean_text = IngestionService.sanitize_text(text)

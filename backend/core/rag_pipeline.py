@@ -25,7 +25,14 @@ class RAGPipeline:
             del self.memories[book_id]
             logger.info("Conversation memory cleared for book_id=%s", book_id)
 
-    async def run_query(self, book_id: str, tool_name: str, query_text: Optional[str] = None, difficulty: str = "standard"):
+    async def run_query(
+        self,
+        book_id: str,
+        tool_name: str,
+        query_text: Optional[str] = None,
+        difficulty: str = "standard",
+        scope: str = "entire_book"
+    ):
 
         DEFAULT_QUERIES = {
             "summary": "main themes plot characters story overview",
@@ -34,6 +41,7 @@ class RAGPipeline:
             "concept": f"concept explanation definition {query_text or ''}",
             "problem": f"problem solution method steps {query_text or ''}",
             "question": query_text or "",
+            "essay_outline": "literary analysis themes symbols character development plot structure"
         }
         try:
             # 1. Tool-specific MMR tuning (PRD 16)
@@ -44,15 +52,20 @@ class RAGPipeline:
                 "plot": 0.5,
                 "question": 0.7,
                 "concept": 0.8,
-                "problem": 0.7
+                "problem": 0.7,
+                "essay_outline": 0.35
             }
             tuning_lambda = lambda_map.get(tool_name, 0.5)
 
             # 2. Two-stage retrieval (Initial k=30, PRD 15)
             # We fetch 30, then rerank to get the most relevant 8
             retriever = self.db_manager.get_retriever(book_id, k=30, lambda_mult=tuning_lambda)
-            
-            search_query = query_text if query_text else DEFAULT_QUERIES.get(tool_name, "main themes and content")
+
+            if tool_name == "essay_outline":
+                search_query = f"Essay outline scope: {scope}. Topic: {query_text or 'general literary analysis'}."
+            else:
+                search_query = query_text if query_text else DEFAULT_QUERIES.get(tool_name, "main themes and content")
+
             initial_docs = await retriever.ainvoke(search_query)
 
             if not initial_docs:
@@ -62,9 +75,6 @@ class RAGPipeline:
 
             # 3. Reranking using FlashRank (PRD 13)
             # Using shared self.compressor initialized in __init__
-            
-            # Since we already have initial_docs, we can just compress them directly to save time
-            # or re-invoke via the compression retriever. To be robust with LangChain 1.x:
             docs = self.compressor.compress_documents(initial_docs, search_query)
 
             if not docs:

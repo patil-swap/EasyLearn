@@ -20,9 +20,13 @@ limiter = Limiter(key_func=get_remote_address)
 
 class QueryRequest(BaseModel):
     book_id: str
-    tool_name: str # "summary", "question", "character_arc", "plot", "concept", "problem"
+    tool_name: str  # "summary", "question", "character_arc", "plot", "concept", "problem", "essay_outline"
     query_text: Optional[str] = None
     difficulty_level: Optional[str] = "standard"
+    scope: Optional[str] = "entire_book"  # for essay_outline
+
+class ClearMemoryRequest(BaseModel):
+    book_id: str
 
 class SourceMetadata(BaseModel):
     chunk_id: str
@@ -54,6 +58,13 @@ async def execute_query(request: Request, query_request: QueryRequest):
                 yield f"data: {json.dumps({'type': 'done'})}\n\n"
             return StreamingResponse(inapplicable_stream(), media_type="text/event-stream")
 
+        if query_request.tool_name == "essay_outline" and book_type != "fiction":
+            async def inapplicable_stream():
+                yield f"data: {json.dumps({'type': 'token', 'value': 'This feature is designed for novels and fiction only.'})}\n\n"
+                yield f"data: {json.dumps({'type': 'sources', 'value': []})}\n\n"
+                yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            return StreamingResponse(inapplicable_stream(), media_type="text/event-stream")
+
     except Exception:
         logger.error("Query failed: Book not found book_id=%s", query_request.book_id)
         raise HTTPException(status_code=404, detail="Book not found. Please upload it first.")
@@ -64,7 +75,8 @@ async def execute_query(request: Request, query_request: QueryRequest):
                 book_id=query_request.book_id,
                 tool_name=query_request.tool_name,
                 query_text=query_request.query_text,
-                difficulty=query_request.difficulty_level
+                difficulty=query_request.difficulty_level,
+                scope=query_request.scope
             ):
                 if chunk["type"] == "token":
                     yield f"data: {json.dumps({'type': 'token', 'value': chunk['value']})}\n\n"
@@ -78,3 +90,14 @@ async def execute_query(request: Request, query_request: QueryRequest):
             yield f"data: {json.dumps({'type': 'error', 'value': str(e)})}\n\n"
 
     return StreamingResponse(stream_response(), media_type="text/event-stream")
+
+@router.post("/clear-memory")
+@limiter.limit("30/hour")
+async def clear_conversation_memory(request: Request, clear_request: ClearMemoryRequest):
+    """
+    Clears in-memory conversation history for the given book_id.
+    Does not delete the uploaded book or vector index.
+    """
+    rag_pipeline.clear_memory(clear_request.book_id)
+    logger.info("Conversation memory cleared for book_id=%s", clear_request.book_id)
+    return {"status": "cleared"}

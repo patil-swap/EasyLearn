@@ -38,6 +38,12 @@ class ErrorCodes:
     SCANNED_PDF = "SCANNED_PDF"
     INVALID_FORMAT = "INVALID_FORMAT"
 
+MIME_TO_FORMAT = {
+    "application/pdf": "pdf",
+    "application/epub+zip": "epub",
+    "text/plain": "txt",
+}
+
 def get_error_code_from_message(error_msg: str) -> str:
     msg_lower = error_msg.lower()
     if "too long" in msg_lower:
@@ -116,14 +122,29 @@ async def upload_book(
                     "message": f"Invalid file content. Expected PDF/EPUB/TXT, detected {detected_mime}"
                 }
             )
-    except Exception as e:
-        if os.path.exists(temp_file_path):
+
+        # New: compare selected format with detected MIME
+        detected_format = MIME_TO_FORMAT.get(detected_mime)
+        selected_format = file_format.lower()
+
+        if detected_format and detected_format != selected_format:
             os.remove(temp_file_path)
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "error": True,
+                    "code": ErrorCodes.INVALID_FORMAT,
+                    "message": f"Selected format does not match the uploaded file. Detected {detected_format.upper()}."
+                }
+            )
+
+    except Exception as e:
+        if os.path.exists(temp_file_path): os.remove(temp_file_path)
         return JSONResponse(
             status_code=500,
             content={"error": True, "code": "SERVER_ERROR", "message": str(e)}
         )
-
+    
     # Synchronous pre-flight validation per PRD Section 5
     try:
         IngestionService.validate_file(temp_file_path, file_format)
