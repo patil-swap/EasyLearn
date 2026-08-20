@@ -38,6 +38,14 @@ class ErrorCodes:
     SCANNED_PDF = "SCANNED_PDF"
     INVALID_FORMAT = "INVALID_FORMAT"
 
+def get_error_code_from_message(error_msg: str) -> str:
+    msg_lower = error_msg.lower()
+    if "too long" in msg_lower:
+        return ErrorCodes.BOOK_TOO_LONG
+    if "scanned image" in msg_lower:
+        return ErrorCodes.SCANNED_PDF
+    return ErrorCodes.INVALID_FORMAT
+
 def process_book_background(book_id: str, file_path: str, file_format: str, book_type: str = "fiction"):
     processing_status[book_id] = {"status": "processing", "code": None, "message": None, "cover_data": None}
     logger.info("Ingestion started for book_id=%s", book_id)
@@ -54,11 +62,7 @@ def process_book_background(book_id: str, file_path: str, file_format: str, book
         logger.info("Ingestion completed for book_id=%s", book_id)
     except Exception as e:
         error_msg = str(e)
-        code = ErrorCodes.INVALID_FORMAT
-        if "too long" in error_msg.lower():
-            code = ErrorCodes.BOOK_TOO_LONG
-        elif "scanned image" in error_msg.lower():
-            code = ErrorCodes.SCANNED_PDF
+        code = get_error_code_from_message(error_msg)
         
         logger.error("Ingestion failed for book_id=%s: %s", book_id, error_msg)
         processing_status[book_id] = {
@@ -71,7 +75,7 @@ def process_book_background(book_id: str, file_path: str, file_format: str, book
             os.remove(file_path)
 
 @router.post("/upload")
-@limiter.limit("15/hour")
+@limiter.limit("5/hour")
 async def upload_book(
     request: Request,
     background_tasks: BackgroundTasks,
@@ -113,12 +117,43 @@ async def upload_book(
                 }
             )
     except Exception as e:
-        if os.path.exists(temp_file_path): os.remove(temp_file_path)
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
         return JSONResponse(
             status_code=500,
             content={"error": True, "code": "SERVER_ERROR", "message": str(e)}
         )
-    
+
+    # Synchronous pre-flight validation per PRD Section 5
+    try:
+        IngestionService.validate_file(temp_file_path, file_format)
+    except ValueError as ve:
+        error_msg = str(ve)
+        code = get_error_code_from_message(error_msg)
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+        logger.warning("Synchronous validation failed for upload book_id=%s: %s", book_id, error_msg)
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": True,
+                "code": code,
+                "message": error_msg
+            }
+        )
+    except Exception:
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+        logger.exception("Synchronous validation crashed for book_id=%s", book_id)
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": True,
+                "code": ErrorCodes.INVALID_FORMAT,
+                "message": "File could not be processed. Check file integrity."
+            }
+        )
+
     # Extract cover synchronously for immediate feedback if possible
     cover_data = None
     if file_format.lower() in ["pdf", "epub"]:

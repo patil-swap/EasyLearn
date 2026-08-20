@@ -27,12 +27,12 @@ export function SourceViewer({ sources }: SourceViewerProps) {
       </CollapsibleTrigger>
       <CollapsibleContent className="mt-2 space-y-2">
         {sources.map((source, i) => (
-          <div key={i} className="bg-white/50 rounded p-2 text-[11px] text-[#5F6368] border border-black/5">
+          <div key={i} className="bg-white/10 rounded p-2 text-[11px] text-gray-200 border border-white/10">
             <div className="font-bold mb-1 flex justify-between">
               <span>{source.chunk_id}</span>
               <span>{source.page ? `p. ${source.page}` : source.chapter}</span>
             </div>
-            <p className="italic">"{source.excerpt}"</p>
+            <p className="italic text-gray-300">"{source.excerpt}"</p>
           </div>
         ))}
       </CollapsibleContent>

@@ -1,12 +1,15 @@
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from typing import Dict, Any, List, AsyncGenerator
+import os
+
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
 
 class LLMHandler:
     def __init__(self, model_name: str = "qwen2.5:7b-instruct-q5_K_M"):
         self.llm = ChatOllama(
             model=model_name,
-            base_url="http://localhost:11434",
+            base_url=OLLAMA_BASE_URL,
             temperature=0,
         )
 

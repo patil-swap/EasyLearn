@@ -6,12 +6,14 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from typing import List, Dict, Any, Optional
 import os
 
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+
 class VectorDBManager:
     def __init__(self, persist_directory: Optional[str] = None):
         self.persist_directory = persist_directory or os.environ.get("CHROMA_DB_PATH", "./db")
         self.embeddings = OllamaEmbeddings(
             model="qwen3-embedding:0.6b",
-            base_url="http://127.0.0.1:11434"
+            base_url=OLLAMA_BASE_URL
         )
         self.client = chromadb.PersistentClient(path=self.persist_directory)
 

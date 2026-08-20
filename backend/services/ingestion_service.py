@@ -73,16 +73,88 @@ class IngestionService:
         return text.strip()
 
     @staticmethod
+    def validate_file(file_path: str, file_format: str) -> None:
+        """
+        Synchronous pre-flight validation for upload endpoint.
+        Raises ValueError with a message matching PRD error codes:
+        - BOOK_TOO_LONG for PDF > MAX_PAGES_PDF or EPUB/TXT > MAX_CHARS_EPUB_TXT
+        - SCANNED_PDF for image-only PDFs
+        """
+        format_lower = file_format.lower()
+
+        if format_lower == "pdf":
+            doc = fitz.open(file_path)
+            try:
+                if len(doc) > MAX_PAGES_PDF:
+                    raise ValueError(
+                        f"Book too long. Maximum supported length is {MAX_PAGES_PDF} pages."
+                    )
+
+                sample_pages = min(10, len(doc))
+                total_sample_chars = 0
+                for i in range(sample_pages):
+                    total_sample_chars += len(doc.load_page(i).get_text().strip())
+
+                average_chars_per_page = total_sample_chars / sample_pages
+                if average_chars_per_page < 20:
+                    raise ValueError(
+                        "This PDF appears to be a scanned image. Only text-based PDFs are supported."
+                    )
+            finally:
+                doc.close()
+
+        elif format_lower == "epub":
+            book = epub.read_epub(file_path)
+            total_chars = 0
+            for item in book.get_items():
+                if item.get_type() != ebooklib.ITEM_DOCUMENT:
+                    continue
+
+                item_name = item.get_name().lower()
+
+                if item_name in EPUB_SKIP_NAMES:
+                    continue
+
+                if any(item_name.startswith(prefix) for prefix in EPUB_SKIP_PREFIXES):
+                    continue
+
+                soup = BeautifulSoup(item.get_content(), "html.parser")
+
+                for tag in soup(["script", "style"]):
+                    tag.decompose()
+
+                text = soup.get_text(separator=" ", strip=True)
+                total_chars += len(text)
+
+                if total_chars > MAX_CHARS_EPUB_TXT:
+                    raise ValueError(
+                        f"Book too long. Maximum supported length is {MAX_CHARS_EPUB_TXT:,} characters."
+                    )
+
+        elif format_lower == "txt":
+            with open(file_path, "r", encoding="utf-8") as f:
+                text = f.read()
+
+            if len(text) > MAX_CHARS_EPUB_TXT:
+                raise ValueError(
+                    f"Book too long. Maximum supported length is {MAX_CHARS_EPUB_TXT:,} characters."
+                )
+
+        else:
+            raise ValueError(f"Unsupported file format: {file_format}")
+
+    @staticmethod
     def extract_text_from_pdf(file_path: str) -> List[Dict[str, Any]]:
         doc = fitz.open(file_path)
 
-        # Scanned PDF detection — check first 5 pages for extractable text
-        sample_pages = min(5, len(doc))
-        sample_text = ""
+        # Scanned PDF detection — check first 10 pages and average text per page
+        sample_pages = min(10, len(doc))
+        total_sample_chars = 0
         for i in range(sample_pages):
-            sample_text += doc.load_page(i).get_text()
+            total_sample_chars += len(doc.load_page(i).get_text().strip())
         
-        if len(sample_text.strip()) == 0:
+        average_chars_per_page = total_sample_chars / sample_pages
+        if average_chars_per_page < 20:
             raise ValueError(
                 "This PDF appears to be a scanned image. Only text-based PDFs are supported."
             )
