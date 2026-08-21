@@ -313,6 +313,20 @@ export default function Home() {
 
             <footer className="p-6 bg-background-dark/80 backdrop-blur-xl border-t border-white/5 mt-auto">
               <div className="max-w-3xl mx-auto">
+                {activeTool === "essay_outline" && (
+                  <div className="mb-3 flex items-center gap-2">
+                    <span className="text-xs text-white/50 font-medium">Scope:</span>
+                    <select
+                      value={essayScope}
+                      onChange={(e) => setEssayScope(e.target.value)}
+                      className="bg-white/5 border border-white/10 text-sm text-white rounded-lg px-3 py-2 outline-none focus:border-[#1A73E8]"
+                    >
+                      <option value="entire_book">Entire Book</option>
+                      <option value="chapter">Specific Chapter</option>
+                    </select>
+                  </div>
+                )}
+
                 <ChatInput
                   onSendMessage={handleSendMessage}
                   isLoading={isLoading}

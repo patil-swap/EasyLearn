@@ -71,3 +71,13 @@ backend/.pytest_cache/
 .vscode/
 .idea/
 *.log
+
+# runtime
+uploads/
+db/
+feedback/feedback.json
+
+# Frontend build output
+frontend/node_modules/
+frontend/.next/
+frontend/out/
