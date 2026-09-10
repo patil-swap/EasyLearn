@@ -35,6 +35,6 @@
   },
   "allowScripts": {
     "msw@2.12.13": true,
-    "unrs-resolver@1.11.1": true
+    "unrs-resolver@1.12.2": true
   }
 }
