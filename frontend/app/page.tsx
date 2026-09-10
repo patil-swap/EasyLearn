@@ -60,6 +60,8 @@ export default function Home() {
     setMessages([]);
     setFeedbackRatings({});
     setFeedbackModalIndex(null);
+    setActiveTool("summary");
+    setChatInput("Summarize this book.");
   };
 
   const handleNewConversation = () => {

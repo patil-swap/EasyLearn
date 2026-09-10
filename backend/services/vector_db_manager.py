@@ -3,6 +3,7 @@ from chromadb.config import Settings
 from langchain_chroma import Chroma
 from langchain_ollama import OllamaEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.documents import Document
 from typing import List, Dict, Any, Optional
 import os
 
@@ -18,7 +19,6 @@ class VectorDBManager:
         self.client = chromadb.PersistentClient(path=self.persist_directory)
 
     def create_collection_from_documents(self, book_id: str, documents: List[Dict[str, Any]], book_type: str = "fiction"):
-        # Flatten documents to LangChain format
         from langchain_core.documents import Document
         
         langchain_docs = []
@@ -28,7 +28,6 @@ class VectorDBManager:
                 metadata=doc["metadata"]
             ))
 
-        # Split documents
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,
             chunk_overlap=200,
@@ -36,13 +35,11 @@ class VectorDBManager:
         )
         splits = text_splitter.split_documents(langchain_docs)
 
-        # Delete existing collection if it exists to ensure replacement (PRD 12)
         self.delete_collection(book_id)
 
-        # Create/overwrite collection with timestamp metadata (PRD 32)
         import time
         metadata = {
-            "created_at": time.time(), 
+            "created_at": time.time(),
             "session_type": "guest",
             "book_type": book_type
         }
@@ -57,26 +54,52 @@ class VectorDBManager:
         return vectorstore
 
     def get_retriever(self, book_id: str, search_type: str = "mmr", k: int = 5, lambda_mult: float = 0.5):
-        # Simulation: Check if session expired (PRD 33)
-        # In a real app, this would be a background cron job.
-        # Here we just verify the collection exists.
         vectorstore = Chroma(
             persist_directory=self.persist_directory,
             embedding_function=self.embeddings,
             collection_name=f"book_{book_id}"
         )
         return vectorstore.as_retriever(
-            search_type=search_type, 
+            search_type=search_type,
             search_kwargs={"k": k, "lambda_mult": lambda_mult}
         )
 
+    def get_all_chunks(self, book_id: str, limit: int = 20) -> List[Document]:
+        """
+        Retrieve evenly spaced chunks from the entire book collection.
+        This is used by the Summary tool to ensure broad coverage.
+        """
+        try:
+            collection = self.client.get_collection(f"book_{book_id}")
+            data = collection.get(include=["documents", "metadatas"])
+        except Exception:
+            return []
+
+        texts = data.get("documents", [])
+        metadatas = data.get("metadatas", [])
+
+        if not texts:
+            return []
+
+        docs = [
+            Document(page_content=text, metadata=meta or {})
+            for text, meta in zip(texts, metadatas)
+        ]
+
+        if len(docs) <= limit:
+            return docs
+
+        # Evenly sample chunks across the collection order.
+        # This assumes insertion order roughly follows book order.
+        step = len(docs) / limit
+        indices = [int(i * step) for i in range(limit)]
+        return [docs[i] for i in indices]
+
     def cleanup_expired_sessions(self, days: int = 7):
-        """Simulated auto-purge for PRD 33"""
-        # Logic: Iterate through collections and delete those older than 7 days
         pass
 
     def delete_collection(self, book_id: str):
         try:
             self.client.delete_collection(f"book_{book_id}")
         except Exception:
-            pass # Collection might not exist
+            pass
